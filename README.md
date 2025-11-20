@@ -1,6 +1,6 @@
 # crypto-browser
 
-[![CI](https://github.com/freedomofthepress/crypto-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/freedomofthepress/crypto-browser/actions/workflows/ci.yml)
+[![CI](https://github.com/freedomofpress/crypto-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/freedomofpress/crypto-browser/actions/workflows/ci.yml)
 
 Browser-compatible cryptography utilities for Sigstore and TUF verification.
 
