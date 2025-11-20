@@ -1,0 +1,39 @@
+{
+  "name": "crypto-browser",
+  "version": "0.1.0",
+  "description": "Browser-compatible cryptography utilities.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "cryptography",
+    "asn1",
+    "x509",
+    "encoding",
+    "browser",
+    "webcrypto",
+    "sigstore"
+  ],
+  "author": "Giulio B. and Sacha Servan-Schreiber",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@noble/curves": "^1.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@noble/curves": "^1.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/freedomofpress/crypto-browser.git"
+  },
+  "files": [
+    "dist"
+  ]
+}
