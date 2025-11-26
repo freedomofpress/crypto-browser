@@ -1,5 +1,5 @@
 {
-  "name": "crypto-browser",
+  "name": "@freedomofpress/crypto-browser",
   "version": "0.1.0",
   "description": "Browser-compatible cryptography utilities.",
   "main": "dist/index.js",
