@@ -6,8 +6,6 @@ import {
   Uint8ArrayToHex,
   stringToUint8Array,
   Uint8ArrayToString,
-  base64ToArrayBuffer,
-  hexToArrayBuffer,
   uint8ArrayEqual,
   base64UrlToUint8Array,
 } from "../src/encoding.js";
@@ -294,17 +292,6 @@ describe("Crypto Browser Compatibility Tests", () => {
       expect(decoded[0]).toBe(1);
     });
 
-    it("should convert base64 to ArrayBuffer", () => {
-      const base64 = "SGVsbG8=";
-      const buffer = base64ToArrayBuffer(base64);
-
-      expect(buffer).toBeInstanceOf(ArrayBuffer);
-      expect(buffer.byteLength).toBe(5);
-
-      const view = new Uint8Array(buffer);
-      expect(view[0]).toBe(72);
-      expect(view[4]).toBe(111);
-    });
   });
 
   describe("Encoding - Hex", () => {
@@ -322,14 +309,6 @@ describe("Crypto Browser Compatibility Tests", () => {
       const hex = Uint8ArrayToHex(original);
 
       expect(hex).toBe("00010f");
-    });
-
-    it("should convert hex to ArrayBuffer", () => {
-      const hex = "48656c6c6f";
-      const buffer = hexToArrayBuffer(hex);
-
-      expect(buffer).toBeInstanceOf(ArrayBuffer);
-      expect(buffer.byteLength).toBe(5);
     });
 
     it("should throw on invalid hex strings", () => {
@@ -582,7 +561,7 @@ SGVsbG8gV29ybGQ=
     });
 
     it("should throw on slice beyond allocated length", () => {
-      const buffer = new ArrayBuffer(10);
+      const buffer = new Uint8Array(10);
       const stream = new ByteStream(buffer);
 
       expect(() => stream.slice(0, 20)).toThrow();

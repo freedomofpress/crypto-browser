@@ -21,18 +21,11 @@ class StreamError extends Error {}
 export class ByteStream {
   private static BLOCK_SIZE = 1024;
 
-  private buf: ArrayBuffer;
   private view: Uint8Array;
   private start = 0;
 
-  constructor(buffer?: ArrayBuffer) {
-    if (buffer) {
-      this.buf = buffer;
-      this.view = new Uint8Array(buffer);
-    } else {
-      this.buf = new ArrayBuffer(0);
-      this.view = new Uint8Array(this.buf);
-    }
+  constructor(buffer?: Uint8Array) {
+    this.view = buffer ?? new Uint8Array(0);
   }
 
   get buffer(): Uint8Array {
@@ -130,12 +123,8 @@ export class ByteStream {
   }
 
   private realloc(size: number) {
-    const newArray = new ArrayBuffer(size);
-    const newView = new Uint8Array(newArray);
-
+    const newView = new Uint8Array(size);
     newView.set(this.view);
-
-    this.buf = newArray;
     this.view = newView;
   }
 }

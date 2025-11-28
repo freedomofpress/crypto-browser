@@ -14,9 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Adapted from: https://github.com/sigstore/sigstore-js/blob/main/packages/core/src/asn1/obj.ts
-Changes: Buffer → Uint8Array for browser compatibility, uses toArrayBuffer helper
+Changes: Buffer → Uint8Array for browser compatibility
 */
-import { toArrayBuffer } from "../encoding.js";
 import { ByteStream } from "../stream.js";
 import { ASN1ParseError, ASN1TypeError } from "./error.js";
 import { decodeLength, encodeLength } from "./length.js";
@@ -42,7 +41,7 @@ export class ASN1Obj {
 
   // Constructs an ASN.1 object from a Buffer of DER-encoded bytes.
   public static parseBuffer(buf: Uint8Array): ASN1Obj {
-    return parseStream(new ByteStream(toArrayBuffer(buf)));
+    return parseStream(new ByteStream(buf));
   }
 
   public toDER(): Uint8Array {

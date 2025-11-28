@@ -1,25 +1,3 @@
-export function toArrayBuffer(view: ArrayBufferView): ArrayBuffer {
-  const { byteLength } = view;
-
-  if (byteLength === 0) {
-    return new ArrayBuffer(0);
-  }
-
-  const { buffer, byteOffset } = view;
-
-  if (
-    buffer instanceof ArrayBuffer &&
-    byteOffset === 0 &&
-    byteLength === buffer.byteLength
-  ) {
-    return buffer;
-  }
-
-  const clone = new Uint8Array(byteLength);
-  clone.set(new Uint8Array(buffer, byteOffset, byteLength));
-  return clone.buffer;
-}
-
 export function base64ToUint8Array(base64: string): Uint8Array {
   const binaryString = atob(base64);
   const length = binaryString.length;
@@ -30,10 +8,6 @@ export function base64ToUint8Array(base64: string): Uint8Array {
   }
 
   return bytes;
-}
-
-export function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  return base64ToUint8Array(base64).buffer.slice(0) as ArrayBuffer;
 }
 
 export function base64UrlToUint8Array(base64url: string): Uint8Array {
@@ -69,16 +43,11 @@ export function hexToUint8Array(hex: string): Uint8Array {
   return uint8Array;
 }
 
-export function hexToArrayBuffer(hex: string): ArrayBuffer {
-  return hexToUint8Array(hex).buffer.slice(0) as ArrayBuffer;
-}
-
-export function Uint8ArrayToHex(data: Uint8Array | ArrayBuffer): string {
-  const array = data instanceof Uint8Array ? data : new Uint8Array(data);
+export function Uint8ArrayToHex(data: Uint8Array): string {
   let hexString = "";
 
-  for (let i = 0; i < array.length; i++) {
-    let hex = array[i].toString(16);
+  for (let i = 0; i < data.length; i++) {
+    let hex = data[i].toString(16);
     if (hex.length === 1) {
       hex = "0" + hex;
     }
@@ -91,10 +60,6 @@ export function Uint8ArrayToHex(data: Uint8Array | ArrayBuffer): string {
 export function stringToUint8Array(str: string): Uint8Array {
   const encoder = new TextEncoder();
   return encoder.encode(str);
-}
-
-export function stringToUintArrayBuffer(str: string): ArrayBuffer {
-  return stringToUint8Array(str).buffer.slice(0) as ArrayBuffer;
 }
 
 export function Uint8ArrayToString(uint8Array: Uint8Array): string {

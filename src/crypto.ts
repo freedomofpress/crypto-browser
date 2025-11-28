@@ -3,8 +3,6 @@ import {
   base64ToUint8Array,
   base64UrlToUint8Array,
   hexToUint8Array,
-  toArrayBuffer,
-  Uint8ArrayToHex,
 } from "./encoding.js";
 import { EcdsaTypes, HashAlgorithms, KeyTypes } from "./interfaces.js";
 import { toDER } from "./pem.js";
@@ -85,7 +83,7 @@ export async function importKey(
 ): Promise<CryptoKey> {
   class importParams {
     format: "raw" | "spki" = "spki";
-    keyData: ArrayBuffer = new ArrayBuffer(0);
+    keyData: Uint8Array = new Uint8Array(0);
     algorithm: RsaHashedImportParams | EcKeyImportParams | Algorithm = { name: "ECDSA" };
     extractable: boolean = true;
     usage: Array<KeyUsage> = ["verify"];
@@ -94,10 +92,10 @@ export async function importKey(
   const params = new importParams();
   if (key.includes("BEGIN")) {
     params.format = "spki";
-    params.keyData = toArrayBuffer(toDER(key));
+    params.keyData = toDER(key);
   } else if (/^[0-9A-Fa-f]+$/.test(key)) {
     params.format = "raw";
-    params.keyData = toArrayBuffer(hexToUint8Array(key));
+    params.keyData = hexToUint8Array(key);
   } else {
     params.format = "spki";
     const keyBytes = base64ToUint8Array(key);
@@ -105,9 +103,9 @@ export async function importKey(
     if (keytype.toLowerCase().includes("pkcs1") &&
         keyBytes[0] === 0x30 && keyBytes[1] === 0x82 &&
         keyBytes[4] === 0x02 && keyBytes[5] === 0x82) {
-      params.keyData = toArrayBuffer(pkcs1ToSpki(keyBytes));
+      params.keyData = pkcs1ToSpki(keyBytes);
     } else {
-      params.keyData = toArrayBuffer(keyBytes);
+      params.keyData = keyBytes;
     }
   }
 
@@ -152,7 +150,7 @@ export async function importKey(
 
   return await crypto.subtle.importKey(
     params.format,
-    params.keyData,
+    params.keyData.buffer as ArrayBuffer,
     params.algorithm,
     params.extractable,
     params.usage,
@@ -214,21 +212,17 @@ export async function verifySignature(
     return await crypto.subtle.verify(
       options,
       key,
-      toArrayBuffer(raw_signature),
-      toArrayBuffer(signed),
+      raw_signature.buffer as ArrayBuffer,
+      signed.buffer as ArrayBuffer,
     );
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
-    // Ed25519 uses raw signatures (not DER-encoded like ECDSA)
-    // Fulcio supports Ed25519, ECDSA, and RSA_PSS for signing certificates
-    // Ed25519 is also used for checkpoint signatures in TLog configurations
     return await crypto.subtle.verify(
       key.algorithm.name,
       key,
-      toArrayBuffer(sig),
-      toArrayBuffer(signed),
+      sig.buffer as ArrayBuffer,
+      signed.buffer as ArrayBuffer,
     );
   } else if (key.algorithm.name === "RSA-PSS") {
-    // Salt length must match the hash output size
     const hashAlg = (key.algorithm as RsaHashedKeyAlgorithm).hash.name;
     const saltLength = hashAlg === HashAlgorithms.SHA256 ? 32 :
                        hashAlg === HashAlgorithms.SHA384 ? 48 :
@@ -239,15 +233,15 @@ export async function verifySignature(
         saltLength: saltLength,
       },
       key,
-      toArrayBuffer(sig),
-      toArrayBuffer(signed),
+      sig.buffer as ArrayBuffer,
+      signed.buffer as ArrayBuffer,
     );
   } else if (key.algorithm.name === "RSASSA-PKCS1-v1_5") {
     return await crypto.subtle.verify(
       key.algorithm.name,
       key,
-      toArrayBuffer(sig),
-      toArrayBuffer(signed),
+      sig.buffer as ArrayBuffer,
+      signed.buffer as ArrayBuffer,
     );
   } else {
     throw new Error("Unsupported key type!");
