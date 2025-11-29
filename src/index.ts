@@ -6,8 +6,6 @@ export * from "./asn1/obj.js";
 export * from "./stream.js";
 export * from "./encoding.js";
 export * from "./pem.js";
-export * from "./oid.js";
 export * from "./canonicalize.js";
 export * from "./crypto.js";
 export * from "./interfaces.js";
-export * from "./x509/index.js";
