@@ -17,7 +17,7 @@ Adapted from: https://github.com/sigstore/sigstore-js/blob/main/packages/core/sr
 Changes: Buffer → Uint8Array, Node.js crypto → Web Crypto API (async verify)
 */
 import { verifySignature } from "../crypto.js";
-import { readBigInt64BE, toArrayBuffer } from "../encoding.js";
+import { readBigInt64BE } from "../encoding.js";
 import { ByteStream } from "../stream.js";
 
 interface SCTOptions {
@@ -114,7 +114,7 @@ export class SignedCertificateTimestamp {
   // https://www.rfc-editor.org/rfc/rfc6962#section-3.2
   // https://www.rfc-editor.org/rfc/rfc5246#section-7.4.1.4.1
   public static parse(buf: Uint8Array): SignedCertificateTimestamp {
-    const stream = new ByteStream(toArrayBuffer(buf));
+    const stream = new ByteStream(buf);
 
     // Version - enum { v1(0), (255) }
     const version = stream.getUint8();

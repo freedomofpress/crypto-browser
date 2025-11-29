@@ -17,7 +17,7 @@ Adapted from: https://github.com/sigstore/sigstore-js/blob/main/packages/core/sr
 Changes: Buffer → Uint8Array, added Fulcio issuer extension classes (V1 & V2)
 */
 import { ASN1Obj } from "../asn1/index.js";
-import { toArrayBuffer, Uint8ArrayToString } from "../encoding.js";
+import { Uint8ArrayToString } from "../encoding.js";
 import { ByteStream } from "../stream.js";
 import { SignedCertificateTimestamp } from "./sct.js";
 
@@ -190,7 +190,7 @@ export class X509SCTExtension extends X509Extension {
 
   get signedCertificateTimestamps(): SignedCertificateTimestamp[] {
     const buf = this.extnValueObj.subs[0].value;
-    const stream = new ByteStream(toArrayBuffer(buf));
+    const stream = new ByteStream(buf);
 
     // The overall list length is encoded in the first two bytes -- note this
     // is the length of the list in bytes, NOT the number of SCTs in the list
