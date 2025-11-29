@@ -150,7 +150,7 @@ export async function importKey(
 
   return await crypto.subtle.importKey(
     params.format,
-    params.keyData.buffer as ArrayBuffer,
+    params.keyData as Uint8Array<ArrayBuffer>,
     params.algorithm,
     params.extractable,
     params.usage,
@@ -212,15 +212,15 @@ export async function verifySignature(
     return await crypto.subtle.verify(
       options,
       key,
-      raw_signature.buffer as ArrayBuffer,
-      signed.buffer as ArrayBuffer,
+      raw_signature as Uint8Array<ArrayBuffer>,
+      signed as Uint8Array<ArrayBuffer>,
     );
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
     return await crypto.subtle.verify(
       key.algorithm.name,
       key,
-      sig.buffer as ArrayBuffer,
-      signed.buffer as ArrayBuffer,
+      sig as Uint8Array<ArrayBuffer>,
+      signed as Uint8Array<ArrayBuffer>,
     );
   } else if (key.algorithm.name === "RSA-PSS") {
     const hashAlg = (key.algorithm as RsaHashedKeyAlgorithm).hash.name;
@@ -233,15 +233,15 @@ export async function verifySignature(
         saltLength: saltLength,
       },
       key,
-      sig.buffer as ArrayBuffer,
-      signed.buffer as ArrayBuffer,
+      sig as Uint8Array<ArrayBuffer>,
+      signed as Uint8Array<ArrayBuffer>,
     );
   } else if (key.algorithm.name === "RSASSA-PKCS1-v1_5") {
     return await crypto.subtle.verify(
       key.algorithm.name,
       key,
-      sig.buffer as ArrayBuffer,
-      signed.buffer as ArrayBuffer,
+      sig as Uint8Array<ArrayBuffer>,
+      signed as Uint8Array<ArrayBuffer>,
     );
   } else {
     throw new Error("Unsupported key type!");
