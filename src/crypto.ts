@@ -4,7 +4,7 @@ import {
   base64UrlToUint8Array,
   hexToUint8Array,
 } from "./encoding.js";
-import { EcdsaTypes, HashAlgorithms, KeyTypes } from "./interfaces.js";
+import { EcdsaTypes, HashAlgorithms, KeyTypes, RsaAlgorithms, RsaSchemes } from "./interfaces.js";
 import { toDER } from "./pem.js";
 import { p256, p384, p521 } from "@noble/curves/nist.js";
 
@@ -133,14 +133,14 @@ export async function importKey(
       hashName = HashAlgorithms.SHA512;
     }
 
-    if (scheme.includes("PKCS1") || scheme.includes("RSA_PKCS1")) {
+    if (normalizedScheme.includes(RsaSchemes.PKCS1) || normalizedScheme.includes(RsaSchemes.RSAPKCS1)) {
       params.algorithm = {
-        name: "RSASSA-PKCS1-v1_5",
+        name: RsaAlgorithms.PKCS1v15,
         hash: { name: hashName },
       };
     } else {
       params.algorithm = {
-        name: "RSA-PSS",
+        name: RsaAlgorithms.PSS,
         hash: { name: hashName },
       };
     }
@@ -222,21 +222,21 @@ export async function verifySignature(
       sig as Uint8Array<ArrayBuffer>,
       signed as Uint8Array<ArrayBuffer>,
     );
-  } else if (key.algorithm.name === "RSA-PSS") {
+  } else if (key.algorithm.name === RsaAlgorithms.PSS) {
     const hashAlg = (key.algorithm as RsaHashedKeyAlgorithm).hash.name;
     const saltLength = hashAlg === HashAlgorithms.SHA256 ? 32 :
                        hashAlg === HashAlgorithms.SHA384 ? 48 :
                        hashAlg === HashAlgorithms.SHA512 ? 64 : 32;
     return await crypto.subtle.verify(
       {
-        name: "RSA-PSS",
+        name: RsaAlgorithms.PSS,
         saltLength: saltLength,
       },
       key,
       sig as Uint8Array<ArrayBuffer>,
       signed as Uint8Array<ArrayBuffer>,
     );
-  } else if (key.algorithm.name === "RSASSA-PKCS1-v1_5") {
+  } else if (key.algorithm.name === RsaAlgorithms.PKCS1v15) {
     return await crypto.subtle.verify(
       key.algorithm.name,
       key,

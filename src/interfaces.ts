@@ -15,3 +15,13 @@ export enum HashAlgorithms {
   SHA384 = "SHA-384",
   SHA512 = "SHA-512",
 }
+
+export enum RsaAlgorithms {
+  PKCS1v15 = "RSASSA-PKCS1-v1_5",
+  PSS = "RSA-PSS",
+}
+
+export enum RsaSchemes {
+  PKCS1 = "PKCS1",
+  RSAPKCS1 = "RSAPKCS1",
+}
