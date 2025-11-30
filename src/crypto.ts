@@ -84,7 +84,7 @@ export async function importKey(
   class importParams {
     format: "raw" | "spki" = "spki";
     keyData: Uint8Array = new Uint8Array(0);
-    algorithm: RsaHashedImportParams | EcKeyImportParams | Algorithm = { name: "ECDSA" };
+    algorithm: RsaHashedImportParams | EcKeyImportParams | Algorithm = { name: KeyTypes.Ecdsa };
     extractable: boolean = true;
     usage: Array<KeyUsage> = ["verify"];
   }
@@ -111,16 +111,16 @@ export async function importKey(
 
   if (keytype.toLowerCase().includes("ecdsa")) {
     if (scheme.includes("256")) {
-      params.algorithm = { name: "ECDSA", namedCurve: EcdsaTypes.P256 };
+      params.algorithm = { name: KeyTypes.Ecdsa, namedCurve: EcdsaTypes.P256 };
     } else if (scheme.includes("384")) {
-      params.algorithm = { name: "ECDSA", namedCurve: EcdsaTypes.P384 };
+      params.algorithm = { name: KeyTypes.Ecdsa, namedCurve: EcdsaTypes.P384 };
     } else if (scheme.includes("521")) {
-      params.algorithm = { name: "ECDSA", namedCurve: EcdsaTypes.P521 };
+      params.algorithm = { name: KeyTypes.Ecdsa, namedCurve: EcdsaTypes.P521 };
     } else {
       throw new Error("Cannot determine ECDSA key size.");
     }
   } else if (keytype.toLowerCase().includes("ed25519")) {
-    params.algorithm = { name: "Ed25519" };
+    params.algorithm = { name: KeyTypes.Ed25519 };
   } else if (keytype.toLowerCase().includes("rsa") || keytype.toLowerCase().includes("pkcs1")) {
     let hashName = HashAlgorithms.SHA256;
     // Normalize scheme to handle various formats: SHA256, SHA_256, SHA-256, etc.
