@@ -301,4 +301,3 @@ export async function verifySignatureOverDigest(
   return curve.verify(sig, digest, publicKey, { format: 'der', prehash: false, lowS: false });
 }
 
-export { uint8ArrayEqual as bufferEqual } from "./encoding.js";
