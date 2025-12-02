@@ -1,6 +1,6 @@
 {
   "name": "@freedomofpress/crypto-browser",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Browser-compatible cryptography utilities.",
   "repository": {
     "type": "git",
