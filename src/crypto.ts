@@ -7,6 +7,176 @@ import {
 import { EcdsaTypes, HashAlgorithms, KeyTypes, RsaAlgorithms, RsaSchemes } from "./interfaces.js";
 import { toDER } from "./pem.js";
 import { p256, p384, p521 } from "@noble/curves/nist.js";
+import { ed25519 } from "@noble/curves/ed25519.js";
+
+let subtlePromise: Promise<SubtleCrypto> | null = null;
+
+export function getSubtle(): Promise<SubtleCrypto> {
+  if (!subtlePromise) {
+    subtlePromise = subtleCryptoProxy();
+  }
+  return subtlePromise;
+}
+
+// Ed25519 is not part of the Web Crypto API W3C spec, and is optionally implemented
+// by browsers. This proxy allows us to provide a fallback implementation using
+// @noble/curves when native support is not available, while still using the native
+// SubtleCrypto for all other operations and algorithms. The proxy intercepts calls
+// to importKey(), sign(), and verify() to handle Ed25519 keys and operations,
+// while passing through everything else to the native SubtleCrypto.
+type FallbackCryptoKey = {
+  __fallback__: true;
+  algorithm: { name: "Ed25519" };
+  type: "public" | "private";
+  bytes: Uint8Array;
+};
+
+function isFallbackKey(key: unknown): key is FallbackCryptoKey {
+  return (
+    typeof key === "object" &&
+    key !== null &&
+    (key as any).__fallback__ === true
+  );
+}
+
+function toUint8(data: BufferSource): Uint8Array {
+  return data instanceof ArrayBuffer
+    ? new Uint8Array(data)
+    : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+}
+
+async function isEd25519Available(): Promise<boolean> {
+  try {
+    // @ts-ignore
+    await crypto.subtle.generateKey(
+      { name: "Ed25519" },
+      false,
+      ["sign", "verify"]
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function subtleCryptoProxy(): Promise<SubtleCrypto> {
+  const nativeSupported = await isEd25519Available();
+  const subtle = crypto.subtle;
+
+  if (nativeSupported) {
+    return subtle;
+  }
+
+  return new Proxy(subtle, {
+    get(target, prop: keyof SubtleCrypto) {
+      if (prop === "importKey") {
+        return async function (
+          format: KeyFormat,
+          keyData: BufferSource,
+          algorithm: any,
+          extractable: boolean,
+          usages: KeyUsage[]
+        ) {
+          if (algorithm?.name === "Ed25519") {
+            const bytes = toUint8(keyData);
+
+            const type: "public" | "private" =
+              usages.includes("sign") ? "private" : "public";
+
+            return {
+              __fallback__: true,
+              algorithm: { name: "Ed25519" },
+              type,
+              bytes,
+            } as FallbackCryptoKey;
+          }
+
+          return format === "jwk"
+            ? target.importKey(
+                "jwk",
+                keyData as JsonWebKey,
+                algorithm,
+                extractable,
+                usages
+              )
+            : target.importKey(
+                format,
+                keyData as BufferSource,
+                algorithm,
+                extractable,
+                usages
+              );
+        };
+      }
+
+      if (prop === "sign") {
+        return async function (
+          algorithm: any,
+          key: CryptoKey | FallbackCryptoKey,
+          data: BufferSource
+        ) {
+          if (
+            algorithm?.name === "Ed25519" &&
+            isFallbackKey(key)
+          ) {
+            if (key.type !== "private") {
+              throw new DOMException(
+                "Invalid key type for signing",
+                "InvalidAccessError"
+              );
+            }
+
+            const sig = ed25519.sign(toUint8(data), key.bytes);
+            return sig.buffer;
+          }
+
+          return target.sign(
+            algorithm,
+            key as CryptoKey,
+            data
+          );
+        };
+      }
+
+      if (prop === "verify") {
+        return async function (
+          algorithm: any,
+          key: CryptoKey | FallbackCryptoKey,
+          signature: BufferSource,
+          data: BufferSource
+        ) {
+          if (
+            algorithm?.name === "Ed25519" &&
+            isFallbackKey(key)
+          ) {
+            if (key.type !== "public") {
+              throw new DOMException(
+                "Invalid key type for verify",
+                "InvalidAccessError"
+              );
+            }
+
+            return ed25519.verify(
+              toUint8(signature),
+              toUint8(data),
+              key.bytes
+            );
+          }
+
+          return target.verify(
+            algorithm,
+            key as CryptoKey,
+            signature,
+            data
+          );
+        };
+      }
+
+      return (target as any)[prop];
+    },
+  });
+}
+
 
 function pkcs1ToSpki(pkcs1Bytes: Uint8Array): Uint8Array {
   const algorithmIdentifier = new Uint8Array([
@@ -148,7 +318,8 @@ export async function importKey(
     throw new Error(`Unsupported ${keytype}`);
   }
 
-  return await crypto.subtle.importKey(
+  const subtle = await getSubtle();
+  return await subtle.importKey(
     params.format,
     params.keyData as Uint8Array<ArrayBuffer>,
     params.algorithm,
@@ -163,6 +334,8 @@ export async function verifySignature(
   sig: Uint8Array,
   hash: string = "sha256",
 ): Promise<boolean> {
+  const subtle = await getSubtle();
+
   const options: {
     name: string;
     hash?: {
@@ -209,14 +382,14 @@ export async function verifySignature(
       return false;
     }
 
-    return await crypto.subtle.verify(
+    return await subtle.verify(
       options,
       key,
       raw_signature as Uint8Array<ArrayBuffer>,
       signed as Uint8Array<ArrayBuffer>,
     );
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
-    return await crypto.subtle.verify(
+    return await subtle.verify(
       key.algorithm.name,
       key,
       sig as Uint8Array<ArrayBuffer>,
@@ -227,7 +400,7 @@ export async function verifySignature(
     const saltLength = hashAlg === HashAlgorithms.SHA256 ? 32 :
                        hashAlg === HashAlgorithms.SHA384 ? 48 :
                        hashAlg === HashAlgorithms.SHA512 ? 64 : 32;
-    return await crypto.subtle.verify(
+    return await subtle.verify(
       {
         name: RsaAlgorithms.PSS,
         saltLength: saltLength,
@@ -237,7 +410,7 @@ export async function verifySignature(
       signed as Uint8Array<ArrayBuffer>,
     );
   } else if (key.algorithm.name === RsaAlgorithms.PKCS1v15) {
-    return await crypto.subtle.verify(
+    return await subtle.verify(
       key.algorithm.name,
       key,
       sig as Uint8Array<ArrayBuffer>,
@@ -258,6 +431,7 @@ export async function verifySignatureOverDigest(
   digest: Uint8Array,
   sig: Uint8Array,
 ): Promise<boolean> {
+  const subtle = await getSubtle();
   if (key.algorithm.name !== KeyTypes.Ecdsa) {
     throw new Error("verifySignatureOverDigest only supports ECDSA keys");
   }
@@ -276,7 +450,7 @@ export async function verifySignatureOverDigest(
   }
 
   // Export the public key to get x and y coordinates
-  const jwk = await crypto.subtle.exportKey("jwk", key);
+  const jwk = await subtle.exportKey("jwk", key);
   if (!jwk.x || !jwk.y) {
     throw new Error("Invalid ECDSA public key: missing x or y coordinates");
   }
