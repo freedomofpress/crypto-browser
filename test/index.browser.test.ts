@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import { ed25519 } from "@noble/curves/ed25519.js";
 import {
   base64ToUint8Array,
   Uint8ArrayToBase64,
@@ -13,7 +14,7 @@ import { toDER, fromDER } from "../src/pem.js";
 import { canonicalize } from "../src/canonicalize.js";
 import { ByteStream } from "../src/stream.js";
 import { ASN1Obj } from "../src/asn1/obj.js";
-import { importKey, verifySignature } from "../src/crypto.js";
+import { importKey, verifySignature, subtleCryptoProxy } from "../src/crypto.js";
 
 describe("Crypto Browser Compatibility Tests", () => {
   describe("Browser Environment", () => {
@@ -654,6 +655,168 @@ SGVsbG8gV29ybGQ=
 
       expect(importedKey).toBeDefined();
       expect(importedKey.type).toBe("public");
+    });
+
+    it("should produce Ed25519 fallback signatures compatible with noble and native WebCrypto", async () => {
+      const generateKeySpy = vi
+        .spyOn(crypto.subtle, "generateKey")
+        .mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"));
+
+      const fallbackSubtle = await subtleCryptoProxy();
+      generateKeySpy.mockRestore();
+
+      const privateKeyBytes = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i + 1));
+      const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
+      const message = new TextEncoder().encode("fallback signing test");
+      const privateKeyPkcs8 = new Uint8Array([
+        0x30, 0x2e,
+        0x02, 0x01, 0x00,
+        0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
+        0x04, 0x22, 0x04, 0x20,
+        ...privateKeyBytes,
+      ]);
+
+      const fallbackPrivateKey = await fallbackSubtle.importKey(
+        "raw",
+        privateKeyBytes,
+        { name: "Ed25519" },
+        false,
+        ["sign"]
+      );
+      const fallbackPublicKey = await fallbackSubtle.importKey(
+        "raw",
+        publicKeyBytes,
+        { name: "Ed25519" },
+        false,
+        ["verify"]
+      );
+
+      const fallbackSignature = new Uint8Array(
+        await fallbackSubtle.sign({ name: "Ed25519" }, fallbackPrivateKey, message)
+      );
+
+      expect((fallbackPrivateKey as any).__fallback__).toBe(true);
+      expect((fallbackPublicKey as any).__fallback__).toBe(true);
+      expect(
+        ed25519.verify(fallbackSignature, message, publicKeyBytes)
+      ).toBe(true);
+
+      const nobleSignature = ed25519.sign(message, privateKeyBytes);
+      expect(uint8ArrayEqual(fallbackSignature, nobleSignature)).toBe(true);
+
+      const fallbackValid = await fallbackSubtle.verify(
+        { name: "Ed25519" },
+        fallbackPublicKey,
+        fallbackSignature,
+        message
+      );
+      expect(fallbackValid).toBe(true);
+
+      let nativeEd25519Available = true;
+      try {
+        await crypto.subtle.generateKey(
+          { name: "Ed25519" },
+          false,
+          ["sign", "verify"]
+        );
+      } catch (error) {
+        if (
+          error instanceof DOMException &&
+          error.name === "NotSupportedError"
+        ) {
+          nativeEd25519Available = false;
+        } else {
+          throw error;
+        }
+      }
+
+      if (nativeEd25519Available) {
+        const nativePrivateKey = await crypto.subtle.importKey(
+          "pkcs8",
+          privateKeyPkcs8,
+          { name: "Ed25519" },
+          false,
+          ["sign"]
+        );
+        const nativePublicKey = await crypto.subtle.importKey(
+          "raw",
+          publicKeyBytes,
+          { name: "Ed25519" },
+          false,
+          ["verify"]
+        );
+
+        const nativeSignature = new Uint8Array(
+          await crypto.subtle.sign({ name: "Ed25519" }, nativePrivateKey, message)
+        );
+
+        expect(uint8ArrayEqual(fallbackSignature, nativeSignature)).toBe(true);
+
+        await expect(
+          crypto.subtle.verify(
+            { name: "Ed25519" },
+            nativePublicKey,
+            fallbackSignature,
+            message
+          )
+        ).resolves.toBe(true);
+
+        await expect(
+          fallbackSubtle.verify(
+            { name: "Ed25519" },
+            fallbackPublicKey,
+            nativeSignature,
+            message
+          )
+        ).resolves.toBe(true);
+      } else {
+        await expect(
+          crypto.subtle.importKey(
+            "pkcs8",
+            privateKeyPkcs8,
+            { name: "Ed25519" },
+            false,
+            ["sign"]
+          )
+        ).rejects.toMatchObject({ name: "NotSupportedError" });
+      }
+    });
+
+    it("should enforce Ed25519 fallback key usage semantics", async () => {
+      const generateKeySpy = vi
+        .spyOn(crypto.subtle, "generateKey")
+        .mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"));
+
+      const subtle = await subtleCryptoProxy();
+      generateKeySpy.mockRestore();
+
+      const privateKeyBytes = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i + 1));
+      const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
+      const message = new TextEncoder().encode("fallback key type validation");
+      const signature = ed25519.sign(message, privateKeyBytes);
+
+      const privateKey = await subtle.importKey(
+        "raw",
+        privateKeyBytes,
+        { name: "Ed25519" },
+        false,
+        ["sign"]
+      );
+      const publicKey = await subtle.importKey(
+        "raw",
+        publicKeyBytes,
+        { name: "Ed25519" },
+        false,
+        ["verify"]
+      );
+
+      await expect(
+        subtle.verify({ name: "Ed25519" }, privateKey, signature, message)
+      ).rejects.toThrow("Invalid key type for verify");
+
+      await expect(
+        subtle.sign({ name: "Ed25519" }, publicKey, message)
+      ).rejects.toThrow("Invalid key type for signing");
     });
   });
 });
