@@ -321,7 +321,7 @@ export async function importKey(
   const subtle = await getSubtle();
   return await subtle.importKey(
     params.format,
-    params.keyData as Uint8Array<ArrayBuffer>,
+    params.keyData as BufferSource,
     params.algorithm,
     params.extractable,
     params.usage,
@@ -385,15 +385,15 @@ export async function verifySignature(
     return await subtle.verify(
       options,
       key,
-      raw_signature as Uint8Array<ArrayBuffer>,
-      signed as Uint8Array<ArrayBuffer>,
+      raw_signature as BufferSource,
+      signed as BufferSource,
     );
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
     return await subtle.verify(
       { name: key.algorithm.name },
       key,
-      sig as Uint8Array<ArrayBuffer>,
-      signed as Uint8Array<ArrayBuffer>,
+      sig as BufferSource,
+      signed as BufferSource,
     );
   } else if (key.algorithm.name === RsaAlgorithms.PSS) {
     const hashAlg = (key.algorithm as RsaHashedKeyAlgorithm).hash.name;
@@ -406,15 +406,15 @@ export async function verifySignature(
         saltLength: saltLength,
       },
       key,
-      sig as Uint8Array<ArrayBuffer>,
-      signed as Uint8Array<ArrayBuffer>,
+      sig as BufferSource,
+      signed as BufferSource,
     );
   } else if (key.algorithm.name === RsaAlgorithms.PKCS1v15) {
     return await subtle.verify(
-      key.algorithm.name,
+      { name: key.algorithm.name },
       key,
-      sig as Uint8Array<ArrayBuffer>,
-      signed as Uint8Array<ArrayBuffer>,
+      sig as BufferSource,
+      signed as BufferSource,
     );
   } else {
     throw new Error("Unsupported key type!");
