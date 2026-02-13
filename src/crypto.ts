@@ -390,7 +390,7 @@ export async function verifySignature(
     );
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
     return await subtle.verify(
-      key.algorithm.name,
+      { name: key.algorithm.name },
       key,
       sig as Uint8Array<ArrayBuffer>,
       signed as Uint8Array<ArrayBuffer>,
