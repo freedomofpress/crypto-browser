@@ -27,31 +27,18 @@ const RE_TIME_LONG_YEAR =
 // Parse a BigInt from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-integer
 export function parseInteger(buf: Uint8Array): bigint {
-  let pos = 0;
   const end = buf.length;
-  let val = buf[pos];
-  const neg = val > 0x7f;
 
-  // Consume any padding bytes
-  const pad = neg ? 0xff : 0x00;
-  while (val == pad && ++pos < end) {
-    val = buf[pos];
+  // DER forbids empty integers and redundant leading 0x00 / 0xff bytes.
+  if (end === 0 || (end > 1 && ((buf[0] === 0x00 && buf[1] < 0x80) || (buf[0] === 0xff && buf[1] >= 0x80)))) {
+    throw new Error("non-minimal integer encoding");
   }
 
-  // Calculate remaining bytes to read
-  const len = end - pos;
-
-  if (len === 0) return BigInt(neg ? -1 : 0);
-
-  // Handle two's complement for negative numbers
-  val = neg ? val - 256 : val;
-
-  // Parse remaining bytes
-  let n = BigInt(val);
-  for (let i = pos + 1; i < end; ++i) {
-    n = n * BigInt(256) + BigInt(buf[i]);
+  // Two's complement: the first byte carries the sign.
+  let n = BigInt(buf[0] > 0x7f ? buf[0] - 256 : buf[0]);
+  for (let i = 1; i < end; ++i) {
+    n = n * 256n + BigInt(buf[i]);
   }
-
   return n;
 }
 
@@ -119,7 +106,11 @@ export function parseOID(buf: Uint8Array): string {
 // Parse a boolean from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-basic-types#boolean
 export function parseBoolean(buf: Uint8Array): boolean {
-  return buf[0] !== 0;
+  // DER encodes a boolean as exactly one byte, 0x00 or 0xff.
+  if (buf.length !== 1 || (buf[0] !== 0x00 && buf[0] !== 0xff)) {
+    throw new Error("invalid boolean encoding");
+  }
+  return buf[0] === 0xff;
 }
 
 // Parse a bit string from the DER-encoded buffer

@@ -43,7 +43,15 @@ export function decodeLength(stream: ByteStream): number {
   // Iterate over the bytes that encode the length.
   let len = 0;
   for (let i = 0; i < byteCount; i++) {
-    len = len * 256 + stream.getUint8();
+    const byte = stream.getUint8();
+    // DER requires the shortest encoding: no leading zero byte, and the long form only from 128 up.
+    if (i === 0 && byte === 0) {
+      throw new ASN1ParseError("non-minimal length encoding");
+    }
+    len = len * 256 + byte;
+  }
+  if (byteCount === 1 && len < 128) {
+    throw new ASN1ParseError("non-minimal length encoding");
   }
 
   // This is a valid ASN.1 length encoding, but we don't support it.
