@@ -60,81 +60,70 @@ async function isEd25519Available(): Promise<boolean> {
 }
 
 export async function subtleCryptoProxy(): Promise<SubtleCrypto> {
-  const nativeSupported = await isEd25519Available();
-  const subtle = crypto.subtle;
+  return (await isEd25519Available()) ? crypto.subtle : withEd25519Fallback(crypto.subtle);
+}
 
-  if (nativeSupported) {
-    return subtle;
+// Fixed DER prefixes of an Ed25519 SubjectPublicKeyInfo and PKCS#8 PrivateKeyInfo; the 32 key bytes follow.
+const ED25519_SPKI_PREFIX = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
+const ED25519_PKCS8_PREFIX = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+
+// Extracts the raw 32-byte Ed25519 key from any WebCrypto import format.
+function ed25519KeyBytes(format: KeyFormat, keyData: BufferSource | JsonWebKey, isPrivate: boolean): Uint8Array {
+  let bytes: Uint8Array;
+  let prefix: number[] = [];
+  if (format === "jwk") {
+    const jwk = keyData as JsonWebKey;
+    const field = isPrivate ? jwk.d : jwk.x;
+    if (jwk.kty !== "OKP" || jwk.crv !== "Ed25519" || !field) {
+      throw new DOMException("Invalid Ed25519 JWK", "DataError");
+    }
+    bytes = base64UrlToUint8Array(field);
+  } else {
+    bytes = toUint8(keyData as BufferSource);
+    prefix = format === "spki" ? ED25519_SPKI_PREFIX : format === "pkcs8" ? ED25519_PKCS8_PREFIX : [];
   }
+  if (bytes.length !== prefix.length + 32 || !prefix.every((b, i) => bytes[i] === b)) {
+    throw new DOMException(`Invalid Ed25519 ${format} key`, "DataError");
+  }
+  return bytes.subarray(prefix.length);
+}
 
+// Wraps a SubtleCrypto so Ed25519 importKey(), sign() and verify() run on @noble/curves; everything else passes through.
+export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
   return new Proxy(subtle, {
     get(target, prop: keyof SubtleCrypto) {
       if (prop === "importKey") {
         return async function (
           format: KeyFormat,
-          keyData: BufferSource,
+          keyData: BufferSource | JsonWebKey,
           algorithm: any,
           extractable: boolean,
           usages: KeyUsage[]
         ) {
           if (algorithm?.name === "Ed25519") {
-            const bytes = toUint8(keyData);
-
-            const type: "public" | "private" =
-              usages.includes("sign") ? "private" : "public";
-
+            const type: "public" | "private" = usages.includes("sign") ? "private" : "public";
             return {
               __fallback__: true,
               algorithm: { name: "Ed25519" },
               type,
-              bytes,
+              bytes: ed25519KeyBytes(format, keyData, type === "private"),
             } as FallbackCryptoKey;
           }
-
           return format === "jwk"
-            ? target.importKey(
-                "jwk",
-                keyData as JsonWebKey,
-                algorithm,
-                extractable,
-                usages
-              )
-            : target.importKey(
-                format,
-                keyData as BufferSource,
-                algorithm,
-                extractable,
-                usages
-              );
+            ? target.importKey("jwk", keyData as JsonWebKey, algorithm, extractable, usages)
+            : target.importKey(format, keyData as BufferSource, algorithm, extractable, usages);
         };
       }
 
       if (prop === "sign") {
-        return async function (
-          algorithm: any,
-          key: CryptoKey | FallbackCryptoKey,
-          data: BufferSource
-        ) {
-          if (
-            algorithm?.name === "Ed25519" &&
-            isFallbackKey(key)
-          ) {
+        return async function (algorithm: any, key: CryptoKey | FallbackCryptoKey, data: BufferSource) {
+          if (algorithm?.name === "Ed25519" && isFallbackKey(key)) {
             if (key.type !== "private") {
-              throw new DOMException(
-                "Invalid key type for signing",
-                "InvalidAccessError"
-              );
+              throw new DOMException("Invalid key type for signing", "InvalidAccessError");
             }
-
-            const sig = ed25519.sign(toUint8(data), key.bytes);
-            return sig.buffer;
+            return ed25519.sign(toUint8(data), key.bytes).buffer;
           }
-
-          return target.sign(
-            algorithm,
-            key as CryptoKey,
-            data
-          );
+          return target.sign(algorithm, key as CryptoKey, data);
         };
       }
 
@@ -145,38 +134,22 @@ export async function subtleCryptoProxy(): Promise<SubtleCrypto> {
           signature: BufferSource,
           data: BufferSource
         ) {
-          if (
-            algorithm?.name === "Ed25519" &&
-            isFallbackKey(key)
-          ) {
+          if (algorithm?.name === "Ed25519" && isFallbackKey(key)) {
             if (key.type !== "public") {
-              throw new DOMException(
-                "Invalid key type for verify",
-                "InvalidAccessError"
-              );
+              throw new DOMException("Invalid key type for verify", "InvalidAccessError");
             }
-
-            return ed25519.verify(
-              toUint8(signature),
-              toUint8(data),
-              key.bytes
-            );
+            return ed25519.verify(toUint8(signature), toUint8(data), key.bytes);
           }
-
-          return target.verify(
-            algorithm,
-            key as CryptoKey,
-            signature,
-            data
-          );
+          return target.verify(algorithm, key as CryptoKey, signature, data);
         };
       }
 
-      return (target as any)[prop];
+      // Native methods brand-check `this`, so they must stay bound to the real SubtleCrypto.
+      const value = Reflect.get(target, prop);
+      return typeof value === "function" ? value.bind(target) : value;
     },
   });
 }
-
 
 function pkcs1ToSpki(pkcs1Bytes: Uint8Array): Uint8Array {
   const algorithmIdentifier = new Uint8Array([
@@ -368,16 +341,22 @@ export async function verifySignature(
       throw new Error("Cannot determine hashing algorithm;");
     }
 
+    // The signature must be exactly SEQUENCE { INTEGER r, INTEGER s } with both positive and curve-sized.
     let raw_signature: Uint8Array;
     try {
       const asn1_sig = ASN1Obj.parseBuffer(sig);
+      if (asn1_sig.subs.length !== 2) {
+        return false;
+      }
       const r = asn1_sig.subs[0].toInteger();
       const s = asn1_sig.subs[1].toInteger();
-      const binr = hexToUint8Array(r.toString(16).padStart(sig_size * 2, "0"));
-      const bins = hexToUint8Array(s.toString(16).padStart(sig_size * 2, "0"));
-      raw_signature = new Uint8Array(binr.length + bins.length);
-      raw_signature.set(binr, 0);
-      raw_signature.set(bins, binr.length);
+      const limit = 1n << BigInt(sig_size * 8);
+      if (r <= 0n || s <= 0n || r >= limit || s >= limit) {
+        return false;
+      }
+      raw_signature = new Uint8Array(sig_size * 2);
+      raw_signature.set(hexToUint8Array(r.toString(16).padStart(sig_size * 2, "0")), 0);
+      raw_signature.set(hexToUint8Array(s.toString(16).padStart(sig_size * 2, "0")), sig_size);
     } catch {
       return false;
     }
