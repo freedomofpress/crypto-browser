@@ -85,7 +85,8 @@ function ed25519KeyBytes(format: KeyFormat, keyData: BufferSource | JsonWebKey, 
   if (bytes.length !== prefix.length + 32 || !prefix.every((b, i) => bytes[i] === b)) {
     throw new DOMException(`Invalid Ed25519 ${format} key`, "DataError");
   }
-  return bytes.subarray(prefix.length);
+  // Copy so later writes to the caller's buffer cannot change the key.
+  return bytes.slice(prefix.length);
 }
 
 // Wraps a SubtleCrypto so Ed25519 importKey(), sign() and verify() run on @noble/curves; everything else passes through.
@@ -138,7 +139,12 @@ export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
             if (key.type !== "public") {
               throw new DOMException("Invalid key type for verify", "InvalidAccessError");
             }
-            return ed25519.verify(toUint8(signature), toUint8(data), key.bytes);
+            // noble throws on a malformed signature. Native returns false, so do the same.
+            try {
+              return ed25519.verify(toUint8(signature), toUint8(data), key.bytes);
+            } catch {
+              return false;
+            }
           }
           return target.verify(algorithm, key as CryptoKey, signature, data);
         };
