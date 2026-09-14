@@ -14,7 +14,7 @@ import { toDER, fromDER } from "../src/pem.js";
 import { canonicalize } from "../src/canonicalize.js";
 import { ByteStream } from "../src/stream.js";
 import { ASN1Obj } from "../src/asn1/obj.js";
-import { importKey, verifySignature, subtleCryptoProxy } from "../src/crypto.js";
+import { importKey, verifySignature, subtleCryptoProxy, getSubtle } from "../src/crypto.js";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";
 
 describe("Crypto Browser Compatibility Tests", () => {
@@ -928,7 +928,11 @@ SGVsbG8gV29ybGQ=
       expect(await fallbackSubtle.verify(alg, fallbackKey, signature.subarray(0, 63), signed)).toBe(false);
 
       // The library entry points must verify the same checkpoint with whatever this browser provides.
+      // In a browser without Ed25519 this is the real fallback path.
+      const native = await hasNativeEd25519();
+      expect((await getSubtle()) === crypto.subtle).toBe(native);
       const key = await importKey("PKIX_ED25519", "PKIX_ED25519", REKOR2_ED25519_SPKI_BASE64);
+      expect((key as any).__fallback__ === true).toBe(!native);
       expect(await verifySignature(key, signed, signature)).toBe(true);
       expect(await verifySignature(key, tampered, signature)).toBe(false);
       expect(await verifySignature(key, signed, signature.subarray(0, 63))).toBe(false);
