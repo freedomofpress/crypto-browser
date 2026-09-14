@@ -39,9 +39,14 @@ export class ASN1Obj {
     this.subs = subs;
   }
 
-  // Constructs an ASN.1 object from a Buffer of DER-encoded bytes.
+  // Constructs an ASN.1 object from DER-encoded bytes. The whole buffer must be one object.
   public static parseBuffer(buf: Uint8Array): ASN1Obj {
-    return parseStream(new ByteStream(buf));
+    const stream = new ByteStream(buf);
+    const obj = parseStream(stream, 0);
+    if (stream.position !== buf.length) {
+      throw new ASN1ParseError('trailing bytes after ASN.1 object');
+    }
+    return obj;
   }
 
   public toDER(): Uint8Array {
@@ -127,7 +132,14 @@ export class ASN1Obj {
 /////////////////////////////////////////////////////////////////////////////
 // Internal stream parsing functions
 
-function parseStream(stream: ByteStream): ASN1Obj {
+// Deeper than any X.509 or CMS structure needs; bounds recursion so crafted input cannot exhaust the stack.
+const MAX_DEPTH = 32;
+
+function parseStream(stream: ByteStream, depth: number): ASN1Obj {
+  if (depth > MAX_DEPTH) {
+    throw new ASN1ParseError('nesting too deep');
+  }
+
   // Parse tag, length, and value from stream
   const tag = new ASN1Tag(stream.getUint8());
   const len = decodeLength(stream);
@@ -140,12 +152,12 @@ function parseStream(stream: ByteStream): ASN1Obj {
   // are embedded in OCTESTRING objects, so we need to check those
   // for children as well.
   if (tag.constructed) {
-    subs = collectSubs(stream, len);
+    subs = collectSubs(stream, len, depth + 1);
   } else if (tag.isOctetString()) {
     // Attempt to parse children of OCTETSTRING objects. If anything fails,
     // assume the object is not constructed and treat as primitive.
     try {
-      subs = collectSubs(stream, len);
+      subs = collectSubs(stream, len, depth + 1);
     } catch (e) {
       // Fail silently and treat as primitive
     }
@@ -159,7 +171,7 @@ function parseStream(stream: ByteStream): ASN1Obj {
   return new ASN1Obj(tag, value, subs);
 }
 
-function collectSubs(stream: ByteStream, len: number): ASN1Obj[] {
+function collectSubs(stream: ByteStream, len: number, depth: number): ASN1Obj[] {
   // Calculate end of object content
   const end = stream.position + len;
 
@@ -174,7 +186,7 @@ function collectSubs(stream: ByteStream, len: number): ASN1Obj[] {
   // Parse all children
   const subs: ASN1Obj[] = [];
   while (stream.position < end) {
-    subs.push(parseStream(stream));
+    subs.push(parseStream(stream, depth));
   }
 
   // When we're done parsing children, we should be at the end of the object

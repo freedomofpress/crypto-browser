@@ -33,8 +33,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        # Current Chromium and Firefox, plus Chromium 136 which has no Ed25519 and so exercises the fallback.
+        run: |
+          npx playwright install --with-deps chromium firefox
+          node node_modules/playwright-legacy/cli.js install chromium-headless-shell
 
       - name: Run browser tests
         run: npm run test:browser

@@ -14,7 +14,8 @@ import { toDER, fromDER } from "../src/pem.js";
 import { canonicalize } from "../src/canonicalize.js";
 import { ByteStream } from "../src/stream.js";
 import { ASN1Obj } from "../src/asn1/obj.js";
-import { importKey, verifySignature, subtleCryptoProxy } from "../src/crypto.js";
+import { importKey, verifySignature, subtleCryptoProxy, getSubtle } from "../src/crypto.js";
+import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";
 
 describe("Crypto Browser Compatibility Tests", () => {
   describe("Browser Environment", () => {
@@ -817,6 +818,124 @@ SGVsbG8gV29ybGQ=
       await expect(
         subtle.sign({ name: "Ed25519" }, publicKey, message)
       ).rejects.toThrow("Invalid key type for signing");
+    });
+
+    // Builds the proxy as if this browser had no Ed25519.
+    async function forcedFallback(): Promise<SubtleCrypto> {
+      const spy = vi
+        .spyOn(crypto.subtle, "generateKey")
+        .mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"));
+      const subtle = await subtleCryptoProxy();
+      spy.mockRestore();
+      return subtle;
+    }
+
+    async function hasNativeEd25519(): Promise<boolean> {
+      try {
+        await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
+        return true;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "NotSupportedError") return false;
+        throw error;
+      }
+    }
+
+    it("should import Ed25519 keys in every WebCrypto format through the fallback", async () => {
+      const fallbackSubtle = await forcedFallback();
+      const alg = { name: "Ed25519" };
+      const priv = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i + 1));
+      const pub = ed25519.getPublicKey(priv);
+      const spki = new Uint8Array([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00, ...pub]);
+      const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...priv]);
+      const b64url = (b: Uint8Array) => Uint8ArrayToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const jwkPub = { kty: "OKP", crv: "Ed25519", x: b64url(pub) };
+      const jwkPriv = { ...jwkPub, d: b64url(priv) };
+      const message = new TextEncoder().encode("fallback format compatibility");
+      const nobleSignature = ed25519.sign(message, priv);
+
+      const publicFormats = [["raw", pub], ["spki", spki], ["jwk", jwkPub]] as const;
+      for (const [format, data] of publicFormats) {
+        const key = await fallbackSubtle.importKey(format, data as never, alg, true, ["verify"]);
+        expect((key as any).__fallback__).toBe(true);
+        expect(await fallbackSubtle.verify(alg, key, nobleSignature, message)).toBe(true);
+        expect(await fallbackSubtle.verify(alg, key, nobleSignature, new Uint8Array([0]))).toBe(false);
+      }
+
+      for (const [format, data] of [["raw", priv], ["pkcs8", pkcs8], ["jwk", jwkPriv]] as const) {
+        const key = await fallbackSubtle.importKey(format, data as never, alg, false, ["sign"]);
+        expect(uint8ArrayEqual(new Uint8Array(await fallbackSubtle.sign(alg, key, message)), nobleSignature)).toBe(true);
+      }
+
+      // Bytes in the wrong container must be rejected.
+      await expect(fallbackSubtle.importKey("raw", spki, alg, true, ["verify"])).rejects.toMatchObject({ name: "DataError" });
+      await expect(fallbackSubtle.importKey("spki", pub, alg, true, ["verify"])).rejects.toMatchObject({ name: "DataError" });
+      await expect(fallbackSubtle.importKey("pkcs8", priv, alg, false, ["sign"])).rejects.toMatchObject({ name: "DataError" });
+
+      // Other algorithms must reach the real SubtleCrypto.
+      const digest = new Uint8Array(await fallbackSubtle.digest("SHA-256", message));
+      expect(uint8ArrayEqual(digest, new Uint8Array(await crypto.subtle.digest("SHA-256", message)))).toBe(true);
+      const ecdsa = await fallbackSubtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+      expect(ecdsa.publicKey).toBeInstanceOf(CryptoKey);
+
+      if (await hasNativeEd25519()) {
+        const nativePriv = await crypto.subtle.importKey("pkcs8", pkcs8, alg, false, ["sign"]);
+        const nativeSignature = new Uint8Array(await crypto.subtle.sign(alg, nativePriv, message));
+        for (const [format, data] of publicFormats) {
+          const nativeKey = await crypto.subtle.importKey(format, data as never, alg, true, ["verify"]);
+          const fallbackKey = await fallbackSubtle.importKey(format, data as never, alg, true, ["verify"]);
+          expect(await crypto.subtle.verify(alg, nativeKey, nobleSignature, message)).toBe(true);
+          expect(await fallbackSubtle.verify(alg, fallbackKey, nativeSignature, message)).toBe(true);
+          expect(await fallbackSubtle.verify(alg, nativeKey, nativeSignature, message)).toBe(true);
+        }
+      }
+    });
+
+    it("should return false for malformed signatures and copy key bytes at import", async () => {
+      const fallbackSubtle = await forcedFallback();
+      const alg = { name: "Ed25519" };
+      const priv = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i + 1));
+      const pub = ed25519.getPublicKey(priv);
+      const message = new TextEncoder().encode("fallback robustness");
+      const sig = ed25519.sign(message, priv);
+
+      // Native returns false here. noble would throw.
+      const key = await fallbackSubtle.importKey("raw", pub, alg, true, ["verify"]);
+      for (const bad of [sig.subarray(0, 63), new Uint8Array([...sig, 0]), new Uint8Array(0), new Uint8Array(64)]) {
+        expect(await fallbackSubtle.verify(alg, key, bad, message)).toBe(false);
+      }
+
+      const input = new Uint8Array(pub);
+      const copied = await fallbackSubtle.importKey("raw", input, alg, true, ["verify"]);
+      input.fill(0);
+      expect(await fallbackSubtle.verify(alg, copied, sig, message)).toBe(true);
+
+      expect(await fallbackSubtle.verify(alg, key, sig.buffer.slice(0), new DataView(message.buffer.slice(0)))).toBe(true);
+    });
+
+    it("should verify a real Rekor checkpoint with the PKIX_ED25519 key, natively and through the fallback", async () => {
+      const { signed, signature } = rekor2Checkpoint(base64ToUint8Array);
+      const alg = { name: "Ed25519" };
+      const tampered = new Uint8Array(signed);
+      tampered[0] ^= 0x01;
+
+      // importKey() hands base64 keys to the proxy as SPKI.
+      const fallbackSubtle = await forcedFallback();
+      const spki = base64ToUint8Array(REKOR2_ED25519_SPKI_BASE64);
+      const fallbackKey = await fallbackSubtle.importKey("spki", spki, alg, true, ["verify"]);
+      expect((fallbackKey as any).__fallback__).toBe(true);
+      expect(await fallbackSubtle.verify(alg, fallbackKey, signature, signed)).toBe(true);
+      expect(await fallbackSubtle.verify(alg, fallbackKey, signature, tampered)).toBe(false);
+      expect(await fallbackSubtle.verify(alg, fallbackKey, signature.subarray(0, 63), signed)).toBe(false);
+
+      // The library entry points must verify the same checkpoint with whatever this browser provides.
+      // In a browser without Ed25519 this is the real fallback path.
+      const native = await hasNativeEd25519();
+      expect((await getSubtle()) === crypto.subtle).toBe(native);
+      const key = await importKey("PKIX_ED25519", "PKIX_ED25519", REKOR2_ED25519_SPKI_BASE64);
+      expect((key as any).__fallback__ === true).toBe(!native);
+      expect(await verifySignature(key, signed, signature)).toBe(true);
+      expect(await verifySignature(key, tampered, signature)).toBe(false);
+      expect(await verifySignature(key, signed, signature.subarray(0, 63))).toBe(false);
     });
   });
 });
