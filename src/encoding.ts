@@ -11,9 +11,9 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 }
 
 export function base64UrlToUint8Array(base64url: string): Uint8Array {
-  let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+  let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
   while (base64.length % 4 !== 0) {
-    base64 += '=';
+    base64 += "=";
   }
   return base64ToUint8Array(base64);
 }
@@ -76,10 +76,7 @@ export function Uint8ArrayToString(uint8Array: Uint8Array): string {
   return decoder.decode(uint8Array);
 }
 
-export function readBigInt64BE(
-  uint8Array: Uint8Array,
-  offset?: number,
-): bigint {
+export function readBigInt64BE(uint8Array: Uint8Array, offset?: number): bigint {
   if (offset === undefined) {
     offset = 0;
   }

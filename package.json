@@ -25,6 +25,8 @@
     "test": "vitest run",
     "test:browser": "vitest run --config vite.config.playwright.ts",
     "test:browser:install": "playwright install chromium firefox && node node_modules/playwright-legacy/cli.js install chromium-headless-shell",
+    "lint": "eslint . && prettier --check .",
+    "lint:fix": "eslint --fix . && prettier --write .",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -43,9 +45,13 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@vitest/browser-playwright": "^5.0.5",
+    "eslint": "^10.14.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
     "playwright": "^1.49.1",
     "playwright-legacy": "npm:playwright-core@1.52.0",
+    "prettier": "^3.9.10",
     "typescript": "^5.0.0",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"
   },
   "files": [

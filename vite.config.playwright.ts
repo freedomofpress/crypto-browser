@@ -1,6 +1,6 @@
+import { playwright } from "@vitest/browser-playwright";
 import { existsSync } from "fs";
 import { createRequire } from "module";
-import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 // Chromium 136 is the last release without Ed25519 in WebCrypto, so the suite runs on it
@@ -19,7 +19,8 @@ function legacyChromium(): string | undefined {
 
 const legacy = legacyChromium();
 if (!legacy) {
-  const message = "Chromium 136 (no Ed25519) is not installed. Run `npm run test:browser:install` to also test the fallback in a real browser.";
+  const message =
+    "Chromium 136 (no Ed25519) is not installed. Run `npm run test:browser:install` to also test the fallback in a real browser.";
   if (process.env.CI) throw new Error(message);
   console.warn(message);
 }
@@ -38,7 +39,13 @@ export default defineConfig({
         { browser: "chromium", name: "chromium" },
         { browser: "firefox", name: "firefox" },
         ...(legacy
-          ? [{ browser: "chromium", name: "chromium-136-no-ed25519", provider: playwright({ launchOptions: { executablePath: legacy } }) }]
+          ? [
+              {
+                browser: "chromium",
+                name: "chromium-136-no-ed25519",
+                provider: playwright({ launchOptions: { executablePath: legacy } }),
+              },
+            ]
           : []),
       ],
     },

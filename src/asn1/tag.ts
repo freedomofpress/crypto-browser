@@ -85,9 +85,7 @@ export class ASN1Tag {
   }
 
   public isOID(): boolean {
-    return (
-      this.isUniversal() && this.number === UNIVERSAL_TAG.OBJECT_IDENTIFIER
-    );
+    return this.isUniversal() && this.number === UNIVERSAL_TAG.OBJECT_IDENTIFIER;
   }
 
   public isUTCTime(): boolean {

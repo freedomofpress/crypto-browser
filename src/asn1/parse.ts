@@ -19,10 +19,8 @@ Changes: Buffer → Uint8Array for browser compatibility, uses Uint8ArrayToStrin
 
 import { Uint8ArrayToString } from "../encoding.js";
 
-const RE_TIME_SHORT_YEAR =
-  /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
-const RE_TIME_LONG_YEAR =
-  /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
+const RE_TIME_SHORT_YEAR = /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
+const RE_TIME_LONG_YEAR = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\.\d{3})?Z$/;
 
 // Parse a BigInt from the DER-encoded buffer
 // https://learn.microsoft.com/en-us/windows/win32/seccertenroll/about-integer
@@ -54,9 +52,7 @@ export function parseTime(buf: Uint8Array, shortYear: boolean): Date {
   const timeStr = parseStringASCII(buf);
 
   // Parse the time string into matches - captured groups start at index 1
-  const m = shortYear
-    ? RE_TIME_SHORT_YEAR.exec(timeStr)
-    : RE_TIME_LONG_YEAR.exec(timeStr);
+  const m = shortYear ? RE_TIME_SHORT_YEAR.exec(timeStr) : RE_TIME_LONG_YEAR.exec(timeStr);
 
   if (!m) {
     throw new Error("invalid time");
