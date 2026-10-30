@@ -17,7 +17,7 @@ import {
   Uint8ArrayToString,
 } from "../src/encoding.js";
 import { HashAlgorithms } from "../src/interfaces.js";
-import { subtleCryptoProxy } from "../src/noble.js";
+import { installEd25519Fallback, subtleCryptoProxy } from "../src/noble.js";
 import { fromDER, toDER } from "../src/pem.js";
 import { ByteStream } from "../src/stream.js";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";
@@ -901,8 +901,9 @@ SGVsbG8gV29ybGQ=
       expect(await fallbackSubtle.verify(alg, fallbackKey, signature.subarray(0, 63), signed)).toBe(false);
 
       // The library entry points must verify the same checkpoint with whatever this browser provides.
-      // In a browser without Ed25519 this is the real fallback path.
+      // In a browser without Ed25519 this is the real fallback path, once installed.
       const native = await hasNativeEd25519();
+      if (!native) await installEd25519Fallback();
       expect((await getSubtle()) === crypto.subtle).toBe(native);
       const key = await importKey("PKIX_ED25519", "PKIX_ED25519", REKOR2_ED25519_SPKI_BASE64);
       expect((key as any).__fallback__ === true).toBe(!native);
