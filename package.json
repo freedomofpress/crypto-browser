@@ -9,6 +9,10 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.19"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -26,7 +30,6 @@
   "keywords": [
     "cryptography",
     "asn1",
-    "x509",
     "encoding",
     "browser",
     "webcrypto",
@@ -43,11 +46,7 @@
     "playwright": "^1.49.1",
     "playwright-legacy": "npm:playwright-core@1.52.0",
     "typescript": "^5.0.0",
-    "vite": "^6.0.7",
     "vitest": "^3.2.4"
-  },
-  "peerDependencies": {
-    "@noble/curves": "^1.6.0"
   },
   "files": [
     "dist"

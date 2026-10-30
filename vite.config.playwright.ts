@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
 import { existsSync } from "fs";
 import { createRequire } from "module";
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 
 // Chromium 136 is the last release without Ed25519 in WebCrypto, so the suite runs on it
 // to exercise the @noble/curves fallback in a real browser. Playwright 1.52 pins that build.
@@ -27,16 +27,6 @@ if (!legacy) {
 export default defineConfig({
   // Match the library build target so tests run the same syntax level that ships.
   esbuild: { target: "es2020" },
-  build: {
-    minify: false,
-    outDir: "dist",
-    target: "es2020",
-    lib: {
-      entry: "src/index.ts",
-      formats: ["es"],
-      fileName: "index",
-    },
-  },
   test: {
     globals: true,
     include: ["test/index.browser.test.ts"],

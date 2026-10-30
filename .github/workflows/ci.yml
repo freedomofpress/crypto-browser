@@ -16,7 +16,7 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - run: npm ci
       - run: npm run build
@@ -29,9 +29,10 @@ jobs:
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - run: npm ci
+      - run: npm test
 
       - name: Install Playwright browsers
         # Current Chromium and Firefox, plus Chromium 136 which has no Ed25519 and so exercises the fallback.
