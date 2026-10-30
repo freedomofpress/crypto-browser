@@ -1,14 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import {
-  base64ToUint8Array,
   Uint8ArrayToBase64,
-  hexToUint8Array,
+  Uint8ArrayToBase64Url,
   Uint8ArrayToHex,
-  stringToUint8Array,
   Uint8ArrayToString,
-  uint8ArrayEqual,
+  base64ToUint8Array,
   base64UrlToUint8Array,
+  hexToUint8Array,
+  stringToUint8Array,
+  uint8ArrayEqual,
 } from "../src/encoding.js";
 import { toDER, fromDER } from "../src/pem.js";
 import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
@@ -296,7 +297,28 @@ describe("Crypto Browser Compatibility Tests", () => {
 
   });
 
+  describe("Encoding - Base64url", () => {
+    it("round-trips without padding and with URL-safe characters", () => {
+      // 0xfb 0xff 0xbf is "+/+/" in base64; one and two trailing bytes exercise the padding.
+      for (const bytes of [new Uint8Array([0xfb, 0xff, 0xbf]), new Uint8Array([0xfb, 0xff]), new Uint8Array([0xfb]), new Uint8Array(0)]) {
+        const encoded = Uint8ArrayToBase64Url(bytes);
+        expect(encoded).not.toMatch(/[+/=]/);
+        expect(base64UrlToUint8Array(encoded)).toEqual(bytes);
+      }
+      expect(Uint8ArrayToBase64Url(new Uint8Array([0xfb, 0xff, 0xbf]))).toBe("-_-_");
+    });
+  });
+
   describe("Encoding - Hex", () => {
+    it("rejects characters outside 0-9a-f instead of decoding them as zero", () => {
+      for (const bad of ["zz", "1z", "0x01", "01 02", "é1"]) {
+        expect(() => hexToUint8Array(bad)).toThrow("invalid characters");
+      }
+      expect(() => hexToUint8Array("abc")).toThrow("even length");
+      expect(hexToUint8Array("")).toEqual(new Uint8Array(0));
+      expect(hexToUint8Array("AbCd")).toEqual(new Uint8Array([0xab, 0xcd]));
+    });
+
     it("should encode and decode hex", () => {
       const original = new Uint8Array([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef]);
       const hex = Uint8ArrayToHex(original);

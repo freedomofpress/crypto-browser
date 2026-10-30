@@ -18,6 +18,11 @@ export function base64UrlToUint8Array(base64url: string): Uint8Array {
   return base64ToUint8Array(base64);
 }
 
+// Unpadded base64url, the inverse of base64UrlToUint8Array.
+export function Uint8ArrayToBase64Url(uint8Array: Uint8Array): string {
+  return Uint8ArrayToBase64(uint8Array).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export function Uint8ArrayToBase64(uint8Array: Uint8Array): string {
   let binaryString = "";
 
@@ -29,6 +34,10 @@ export function Uint8ArrayToBase64(uint8Array: Uint8Array): string {
 }
 
 export function hexToUint8Array(hex: string): Uint8Array {
+  // parseInt would turn "zz" into 0 and "1z" into 1 without complaint.
+  if (!/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new Error("Hex string contains invalid characters");
+  }
   if (hex.length % 2 !== 0) {
     throw new Error("Hex string must have an even length");
   }
