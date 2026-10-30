@@ -7,6 +7,7 @@ import {
   Uint8ArrayToString,
   base64ToUint8Array,
   base64UrlToUint8Array,
+  concatBytes,
   hexToUint8Array,
   stringToUint8Array,
   uint8ArrayEqual,
@@ -15,7 +16,15 @@ import { toDER, fromDER } from "../src/pem.js";
 import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
 import { ByteStream } from "../src/stream.js";
 import { ASN1Obj } from "../src/asn1/obj.js";
-import { importKey, verifySignature, subtleCryptoProxy, getSubtle } from "../src/crypto.js";
+import { HashAlgorithms } from "../src/interfaces.js";
+import {
+  digest,
+  getSubtle,
+  importKey,
+  sha256,
+  subtleCryptoProxy,
+  verifySignature,
+} from "../src/crypto.js";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";
 
 describe("Crypto Browser Compatibility Tests", () => {
@@ -306,6 +315,34 @@ describe("Crypto Browser Compatibility Tests", () => {
         expect(base64UrlToUint8Array(encoded)).toEqual(bytes);
       }
       expect(Uint8ArrayToBase64Url(new Uint8Array([0xfb, 0xff, 0xbf]))).toBe("-_-_");
+    });
+  });
+
+  describe("Encoding - concatBytes", () => {
+    it("joins parts in order and copies them", () => {
+      const a = new Uint8Array([1, 2]);
+      const joined = concatBytes(a, new Uint8Array(0), new Uint8Array([3]));
+      expect(joined).toEqual(new Uint8Array([1, 2, 3]));
+      a[0] = 9;
+      expect(joined[0]).toBe(1);
+      expect(concatBytes()).toEqual(new Uint8Array(0));
+    });
+  });
+
+  describe("Digest", () => {
+    it("hashes bytes to known vectors", async () => {
+      const abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+      expect(Uint8ArrayToHex(await sha256(stringToUint8Array("abc")))).toBe(abc);
+      expect(Uint8ArrayToHex(await sha256(new Uint8Array(0)))).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+      expect(Uint8ArrayToHex(await digest(HashAlgorithms.SHA384, stringToUint8Array("abc")))).toBe(
+        "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
+      );
+    });
+
+    it("hashes a view at an offset, not the whole buffer", async () => {
+      const buffer = new Uint8Array([0, 0x61, 0x62, 0x63, 0]);
+      const view = buffer.subarray(1, 4);
+      expect(Uint8ArrayToHex(await sha256(view))).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     });
   });
 

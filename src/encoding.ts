@@ -18,7 +18,7 @@ export function base64UrlToUint8Array(base64url: string): Uint8Array {
   return base64ToUint8Array(base64);
 }
 
-// Unpadded base64url, the inverse of base64UrlToUint8Array.
+// Unpadded base64url.
 export function Uint8ArrayToBase64Url(uint8Array: Uint8Array): string {
   return Uint8ArrayToBase64(uint8Array).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -34,7 +34,7 @@ export function Uint8ArrayToBase64(uint8Array: Uint8Array): string {
 }
 
 export function hexToUint8Array(hex: string): Uint8Array {
-  // parseInt would turn "zz" into 0 and "1z" into 1 without complaint.
+  // parseInt would accept "1z".
   if (!/^[0-9a-fA-F]*$/.test(hex)) {
     throw new Error("Hex string contains invalid characters");
   }
@@ -93,6 +93,16 @@ export function base64Encode(str: string): string {
 
 export function base64Decode(str: string): string {
   return Uint8ArrayToString(base64ToUint8Array(str));
+}
+
+export function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    out.set(part, offset);
+    offset += part.length;
+  }
+  return out;
 }
 
 export function uint8ArrayEqual(a: Uint8Array, b: Uint8Array): boolean {
