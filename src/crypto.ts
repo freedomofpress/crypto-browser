@@ -32,11 +32,7 @@ type FallbackCryptoKey = {
 };
 
 function isFallbackKey(key: unknown): key is FallbackCryptoKey {
-  return (
-    typeof key === "object" &&
-    key !== null &&
-    (key as any).__fallback__ === true
-  );
+  return typeof key === "object" && key !== null && (key as { __fallback__?: unknown }).__fallback__ === true;
 }
 
 function toUint8(data: BufferSource): Uint8Array {
@@ -47,7 +43,6 @@ function toUint8(data: BufferSource): Uint8Array {
 
 async function isEd25519Available(): Promise<boolean> {
   try {
-    // @ts-ignore
     await crypto.subtle.generateKey(
       { name: "Ed25519" },
       false,
