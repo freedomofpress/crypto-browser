@@ -7,5 +7,6 @@ export * from "./canonicalize.js";
 export * from "./crypto.js";
 export * from "./encoding.js";
 export * from "./interfaces.js";
+export * from "./merkle.js";
 export * from "./pem.js";
 export * from "./stream.js";

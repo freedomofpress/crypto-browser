@@ -24,6 +24,7 @@ Used by [tuf-browser](https://github.com/freedomofpress/tuf-browser) and [sigsto
 - **UTF-8**: String to Uint8Array conversion
 - **Bytes**: `concatBytes`, and constant-time comparison with `uint8ArrayEqual`
 - **Digests**: `sha256(bytes)` and `digest(algorithm, bytes)` returning bytes
+- **Merkle trees** (RFC 6962): `hashLeaf`, `hashChildren`, `rootHash`, `verifyInclusionProof`, `verifyConsistencyProof`, tested against the transparency-dev vectors
 
 ### Cryptographic Operations
 - **Key import**: Support for ECDSA (P-256/P-384/P-521), Ed25519, and RSA keys
