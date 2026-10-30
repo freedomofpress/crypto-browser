@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ASN1Obj } from "../src/asn1/obj.js";
 import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
-import { digest, getSubtle, importKey, sha256, subtleCryptoProxy, verifySignature } from "../src/crypto.js";
+import { digest, getSubtle, importKey, sha256, verifySignature } from "../src/crypto.js";
 import {
   base64ToUint8Array,
   base64UrlToUint8Array,
@@ -17,6 +17,7 @@ import {
   Uint8ArrayToString,
 } from "../src/encoding.js";
 import { HashAlgorithms } from "../src/interfaces.js";
+import { subtleCryptoProxy } from "../src/noble.js";
 import { fromDER, toDER } from "../src/pem.js";
 import { ByteStream } from "../src/stream.js";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";

@@ -5,8 +5,9 @@ import { describe, expect, it } from "vitest";
 
 import { ASN1Obj } from "../src/asn1/obj";
 import { ASN1Tag } from "../src/asn1/tag";
-import { importKey, verifySignature, withEd25519Fallback } from "../src/crypto";
+import { importKey, verifySignature } from "../src/crypto";
 import { base64ToUint8Array, uint8ArrayEqual, Uint8ArrayToBase64 } from "../src/encoding";
+import { withEd25519Fallback } from "../src/noble";
 
 const bundle = JSON.parse(
   readFileSync(join(__dirname, "./fixtures/sigstore/happy-path/bundle.sigstore.json"), "utf-8"),

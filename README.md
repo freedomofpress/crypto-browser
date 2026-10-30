@@ -32,7 +32,7 @@ Used by [tuf-browser](https://github.com/freedomofpress/tuf-browser) and [sigsto
   - ECDSA with SHA-256/384/512
   - Ed25519
   - RSA-PSS and RSASSA-PKCS1-v1_5
-- **Digest verification**: ECDSA signature verification over pre-computed digests (using @noble/curves)
+- **Digest verification**: ECDSA signature verification over pre-computed digests, in the opt-in `noble` entry
 - **PKCS#1 to SPKI conversion**: Convert RSA keys for Web Crypto compatibility
 
 ### Additional Utilities
@@ -84,7 +84,19 @@ const pem = fromDER(derBytes, 'PUBLIC KEY');
 
 ## Dependencies
 
-- `@noble/curves`: Used for low-level ECDSA verification over pre-computed digests
+- `@noble/curves`: only reached through `@freedomofpress/crypto-browser/noble`, so bundles that never import that entry do not carry it
+
+## Ed25519 fallback and digest verification
+
+`getSubtle()` returns the platform's native `SubtleCrypto`. Platforms without Ed25519 in WebCrypto can route every helper through `@noble/curves` for Ed25519 keys only:
+
+```typescript
+import { installEd25519Fallback } from "@freedomofpress/crypto-browser/noble";
+
+await installEd25519Fallback();
+```
+
+The same entry exports `verifySignatureOverDigest(key, digest, signature)` for ECDSA signatures when only the digest of the signed data is available.
 
 ## Structure
 
