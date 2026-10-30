@@ -1,6 +1,6 @@
-/// <reference types="vitest" />
 import { existsSync } from "fs";
 import { createRequire } from "module";
+import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 // Chromium 136 is the last release without Ed25519 in WebCrypto, so the suite runs on it
@@ -31,13 +31,15 @@ export default defineConfig({
     globals: true,
     include: ["test/index.browser.test.ts"],
     browser: {
-      provider: "playwright",
+      provider: playwright(),
       enabled: true,
       headless: true,
       instances: [
         { browser: "chromium", name: "chromium" },
         { browser: "firefox", name: "firefox" },
-        ...(legacy ? [{ browser: "chromium", name: "chromium-136-no-ed25519", launch: { executablePath: legacy } }] : []),
+        ...(legacy
+          ? [{ browser: "chromium", name: "chromium-136-no-ed25519", provider: playwright({ launchOptions: { executablePath: legacy } }) }]
+          : []),
       ],
     },
   },
