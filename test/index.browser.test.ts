@@ -11,7 +11,7 @@ import {
   base64UrlToUint8Array,
 } from "../src/encoding.js";
 import { toDER, fromDER } from "../src/pem.js";
-import { canonicalize } from "../src/canonicalize.js";
+import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
 import { ByteStream } from "../src/stream.js";
 import { ASN1Obj } from "../src/asn1/obj.js";
 import { importKey, verifySignature, subtleCryptoProxy, getSubtle } from "../src/crypto.js";

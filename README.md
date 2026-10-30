@@ -35,7 +35,7 @@ Used by [tuf-browser](https://github.com/freedomofpress/tuf-browser) and [sigsto
 
 ### Additional Utilities
 - **ByteStream**: Efficient byte buffer with auto-growing allocation
-- **Canonical JSON**: TUF-compliant canonical JSON encoding
+- **Canonical JSON**: OLPC canonical JSON (TUF) and RFC 8785 JCS (Rekor, WEBCAT), both tested against official vectors
 
 ## Installation
 
@@ -116,6 +116,6 @@ This package provides browser-compatible versions of cryptographic utilities fro
 
 **Primary Sources:**
 - [sigstore-js](https://github.com/sigstore/sigstore-js) - ASN.1 parsing, PEM encoding, and stream utilities
-- [tuf-js](https://github.com/theupdateframework/tuf-js) - Canonical JSON implementation
+- [tuf-js](https://github.com/theupdateframework/tuf-js) and [sigstore-js](https://github.com/sigstore/sigstore-js) - Canonical JSON implementations
 
 All files maintain their original copyright headers.
