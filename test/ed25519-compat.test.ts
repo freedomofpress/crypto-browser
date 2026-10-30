@@ -1,8 +1,9 @@
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { subtleCryptoProxy, withEd25519Fallback } from "../src/crypto";
+import { getSubtle, setSubtle } from "../src/crypto";
 import { base64ToUint8Array, uint8ArrayEqual, Uint8ArrayToBase64 } from "../src/encoding";
+import { installEd25519Fallback, subtleCryptoProxy, withEd25519Fallback } from "../src/noble";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519";
 
 // Native WebCrypto is the reference. The fallback must accept, reject and sign the same way.
@@ -176,6 +177,18 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     expect(isFallback(await proxied.importKey("raw", pub, alg, true, ["verify"]))).toBe(true);
   });
 
+  it("installEd25519Fallback routes getSubtle() through the proxy when Ed25519 is missing", async () => {
+    vi.spyOn(crypto.subtle, "generateKey").mockRejectedValueOnce(
+      new DOMException("not supported", "NotSupportedError"),
+    );
+    const installed = await installEd25519Fallback();
+    vi.restoreAllMocks();
+    expect(await getSubtle()).toBe(installed);
+    expect(isFallback(await installed.importKey("raw", pub, alg, true, ["verify"]))).toBe(true);
+    setSubtle(crypto.subtle);
+    expect(await getSubtle()).toBe(crypto.subtle);
+  });
+
   it("passes other algorithms through to native", async () => {
     expect(
       uint8ArrayEqual(
@@ -218,7 +231,9 @@ describe("Real Rekor checkpoint through importKey() and verifySignature()", () =
       );
     }
     const mod = await import("../src/crypto");
-    const subtle = await mod.getSubtle();
+    const subtle = forceFallback
+      ? await (await import("../src/noble")).installEd25519Fallback()
+      : await mod.getSubtle();
     vi.restoreAllMocks();
     return { mod, subtle };
   }
