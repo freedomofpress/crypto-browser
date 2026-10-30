@@ -18,6 +18,14 @@ export function getSubtle(): Promise<SubtleCrypto> {
   return subtlePromise;
 }
 
+// algorithm is a WebCrypto name such as "SHA-256".
+export async function digest(algorithm: string, data: Uint8Array): Promise<Uint8Array> {
+  const subtle = await getSubtle();
+  return new Uint8Array(await subtle.digest(algorithm, data as BufferSource));
+}
+
+export const sha256 = (data: Uint8Array): Promise<Uint8Array> => digest(HashAlgorithms.SHA256, data);
+
 // Ed25519 is not part of the Web Crypto API W3C spec, and is optionally implemented
 // by browsers. This proxy allows us to provide a fallback implementation using
 // @noble/curves when native support is not available, while still using the native
