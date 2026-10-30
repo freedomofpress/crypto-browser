@@ -1,18 +1,18 @@
+import { ed25519 } from "@noble/curves/ed25519.js";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { ed25519 } from "@noble/curves/ed25519.js";
 
 import { ASN1Obj } from "../src/asn1/obj";
 import { ASN1Tag } from "../src/asn1/tag";
 import { importKey, verifySignature, withEd25519Fallback } from "../src/crypto";
-import { base64ToUint8Array, Uint8ArrayToBase64, uint8ArrayEqual } from "../src/encoding";
+import { base64ToUint8Array, uint8ArrayEqual, Uint8ArrayToBase64 } from "../src/encoding";
 
 const bundle = JSON.parse(
-  readFileSync(join(__dirname, "./fixtures/sigstore/happy-path/bundle.sigstore.json"), "utf-8")
+  readFileSync(join(__dirname, "./fixtures/sigstore/happy-path/bundle.sigstore.json"), "utf-8"),
 );
 const leafDER: Uint8Array = base64ToUint8Array(
-  bundle.verificationMaterial.x509CertificateChain.certificates[0].rawBytes
+  bundle.verificationMaterial.x509CertificateChain.certificates[0].rawBytes,
 );
 
 // Wraps `inner` in `depth` SEQUENCEs (or OCTET STRINGs) using minimal DER lengths.
@@ -40,12 +40,16 @@ describe("Strict DER parsing", () => {
 
   it("rejects non-minimal length encodings", () => {
     expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x30, 0x81, 0x02, 0x05, 0x00]))).toThrow("non-minimal length");
-    expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x30, 0x83, 0x00, ...leafDER.subarray(2)]))).toThrow("non-minimal length");
+    expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x30, 0x83, 0x00, ...leafDER.subarray(2)]))).toThrow(
+      "non-minimal length",
+    );
   });
 
   it("rejects non-minimal integers and non-DER booleans", () => {
     expect(ASN1Obj.parseBuffer(new Uint8Array([0x02, 0x02, 0x00, 0x80])).toInteger()).toBe(128n);
-    expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x02, 0x02, 0x00, 0x01])).toInteger()).toThrow("non-minimal integer");
+    expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x02, 0x02, 0x00, 0x01])).toInteger()).toThrow(
+      "non-minimal integer",
+    );
     expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x02, 0x00])).toInteger()).toThrow("non-minimal integer");
     expect(ASN1Obj.parseBuffer(new Uint8Array([0x01, 0x01, 0xff])).toBoolean()).toBe(true);
     expect(() => ASN1Obj.parseBuffer(new Uint8Array([0x01, 0x01, 0x01])).toBoolean()).toThrow("invalid boolean");
@@ -65,14 +69,36 @@ describe("Ed25519 fallback", () => {
   const priv = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
   const pub = ed25519.getPublicKey(priv);
   const spki = new Uint8Array([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00, ...pub]);
-  const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...priv]);
+  const pkcs8 = new Uint8Array([
+    0x30,
+    0x2e,
+    0x02,
+    0x01,
+    0x00,
+    0x30,
+    0x05,
+    0x06,
+    0x03,
+    0x2b,
+    0x65,
+    0x70,
+    0x04,
+    0x22,
+    0x04,
+    0x20,
+    ...priv,
+  ]);
   const msg = new TextEncoder().encode("checkpoint");
   const alg = { name: "Ed25519" };
 
   it("imports public keys from raw, spki and jwk and verifies noble signatures", async () => {
     const sig = ed25519.sign(msg, priv);
     const b64url = Uint8ArrayToBase64(pub).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    for (const [format, data] of [["raw", pub], ["spki", spki], ["jwk", { kty: "OKP", crv: "Ed25519", x: b64url }]] as const) {
+    for (const [format, data] of [
+      ["raw", pub],
+      ["spki", spki],
+      ["jwk", { kty: "OKP", crv: "Ed25519", x: b64url }],
+    ] as const) {
       const key = await subtle.importKey(format, data as never, alg, true, ["verify"]);
       expect((key as unknown as { bytes: Uint8Array }).bytes).toHaveLength(32);
       expect(await subtle.verify(alg, key, sig, msg)).toBe(true);
@@ -81,7 +107,10 @@ describe("Ed25519 fallback", () => {
   });
 
   it("imports private keys from raw and pkcs8 and signs like noble", async () => {
-    for (const [format, data] of [["raw", priv], ["pkcs8", pkcs8]] as const) {
+    for (const [format, data] of [
+      ["raw", priv],
+      ["pkcs8", pkcs8],
+    ] as const) {
       const key = await subtle.importKey(format, data, alg, false, ["sign"]);
       const sig = new Uint8Array(await subtle.sign(alg, key, msg));
       expect(uint8ArrayEqual(sig, ed25519.sign(msg, priv))).toBe(true);
@@ -123,7 +152,9 @@ describe("Strict ECDSA signature encoding", () => {
     const s = toBig(raw.subarray(32));
 
     expect(await verifySignature(kp.publicKey, msg, der(integer(r), integer(s)))).toBe(true);
-    expect(await verifySignature(kp.publicKey, msg, new Uint8Array([...der(integer(r), integer(s)), 0x00]))).toBe(false);
+    expect(await verifySignature(kp.publicKey, msg, new Uint8Array([...der(integer(r), integer(s)), 0x00]))).toBe(
+      false,
+    );
     const padded = new ASN1Obj(new ASN1Tag(0x02), new Uint8Array([0x00, ...integer(r).value]), []);
     expect(await verifySignature(kp.publicKey, msg, der(padded, integer(s)))).toBe(false);
     expect(await verifySignature(kp.publicKey, msg, der(integer(r), integer(s), integer(1n)))).toBe(false);

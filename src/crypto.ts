@@ -1,13 +1,10 @@
+import { ed25519 } from "@noble/curves/ed25519.js";
+import { p256, p384, p521 } from "@noble/curves/nist.js";
+
 import { ASN1Obj } from "./asn1/index.js";
-import {
-  base64ToUint8Array,
-  base64UrlToUint8Array,
-  hexToUint8Array,
-} from "./encoding.js";
+import { base64ToUint8Array, base64UrlToUint8Array, hexToUint8Array } from "./encoding.js";
 import { EcdsaTypes, HashAlgorithms, KeyTypes, RsaAlgorithms, RsaSchemes } from "./interfaces.js";
 import { toDER } from "./pem.js";
-import { p256, p384, p521 } from "@noble/curves/nist.js";
-import { ed25519 } from "@noble/curves/ed25519.js";
 
 let subtlePromise: Promise<SubtleCrypto> | null = null;
 
@@ -39,6 +36,9 @@ type FallbackCryptoKey = {
   bytes: Uint8Array;
 };
 
+const algorithmName = (algorithm: AlgorithmIdentifier): string =>
+  typeof algorithm === "string" ? algorithm : algorithm.name;
+
 function isFallbackKey(key: unknown): key is FallbackCryptoKey {
   return typeof key === "object" && key !== null && (key as { __fallback__?: unknown }).__fallback__ === true;
 }
@@ -51,11 +51,7 @@ function toUint8(data: BufferSource): Uint8Array {
 
 async function isEd25519Available(): Promise<boolean> {
   try {
-    await crypto.subtle.generateKey(
-      { name: "Ed25519" },
-      false,
-      ["sign", "verify"]
-    );
+    await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
     return true;
   } catch {
     return false;
@@ -68,7 +64,9 @@ export async function subtleCryptoProxy(): Promise<SubtleCrypto> {
 
 // Fixed DER prefixes of an Ed25519 SubjectPublicKeyInfo and PKCS#8 PrivateKeyInfo; the 32 key bytes follow.
 const ED25519_SPKI_PREFIX = [0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00];
-const ED25519_PKCS8_PREFIX = [0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20];
+const ED25519_PKCS8_PREFIX = [
+  0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+];
 
 // Extracts the raw 32-byte Ed25519 key from any WebCrypto import format.
 function ed25519KeyBytes(format: KeyFormat, keyData: BufferSource | JsonWebKey, isPrivate: boolean): Uint8Array {
@@ -100,11 +98,11 @@ export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
         return async function (
           format: KeyFormat,
           keyData: BufferSource | JsonWebKey,
-          algorithm: any,
+          algorithm: AlgorithmIdentifier,
           extractable: boolean,
-          usages: KeyUsage[]
+          usages: KeyUsage[],
         ) {
-          if (algorithm?.name === "Ed25519") {
+          if (algorithmName(algorithm) === "Ed25519") {
             const type: "public" | "private" = usages.includes("sign") ? "private" : "public";
             return {
               __fallback__: true,
@@ -120,8 +118,8 @@ export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
       }
 
       if (prop === "sign") {
-        return async function (algorithm: any, key: CryptoKey | FallbackCryptoKey, data: BufferSource) {
-          if (algorithm?.name === "Ed25519" && isFallbackKey(key)) {
+        return async function (algorithm: AlgorithmIdentifier, key: CryptoKey | FallbackCryptoKey, data: BufferSource) {
+          if (algorithmName(algorithm) === "Ed25519" && isFallbackKey(key)) {
             if (key.type !== "private") {
               throw new DOMException("Invalid key type for signing", "InvalidAccessError");
             }
@@ -133,12 +131,12 @@ export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
 
       if (prop === "verify") {
         return async function (
-          algorithm: any,
+          algorithm: AlgorithmIdentifier,
           key: CryptoKey | FallbackCryptoKey,
           signature: BufferSource,
-          data: BufferSource
+          data: BufferSource,
         ) {
-          if (algorithm?.name === "Ed25519" && isFallbackKey(key)) {
+          if (algorithmName(algorithm) === "Ed25519" && isFallbackKey(key)) {
             if (key.type !== "public") {
               throw new DOMException("Invalid key type for verify", "InvalidAccessError");
             }
@@ -162,9 +160,7 @@ export function withEd25519Fallback(subtle: SubtleCrypto): SubtleCrypto {
 
 function pkcs1ToSpki(pkcs1Bytes: Uint8Array): Uint8Array {
   const algorithmIdentifier = new Uint8Array([
-    0x30, 0x0d,
-    0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
-    0x05, 0x00
+    0x30, 0x0d, 0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01, 0x05, 0x00,
   ]);
 
   const bitStringLength = pkcs1Bytes.length + 1;
@@ -228,11 +224,7 @@ function lengthBytes(length: number): Uint8Array {
 // - Hex string (all hex chars): Import as raw
 // - Base64 PKCS#1 (starts with 0x30 0x82...): Convert to SPKI
 // - Base64 SPKI: Import directly
-export async function importKey(
-  keytype: string,
-  scheme: string,
-  key: string,
-): Promise<CryptoKey> {
+export async function importKey(keytype: string, scheme: string, key: string): Promise<CryptoKey> {
   class importParams {
     format: "raw" | "spki" = "spki";
     keyData: Uint8Array = new Uint8Array(0);
@@ -252,9 +244,13 @@ export async function importKey(
     params.format = "spki";
     const keyBytes = base64ToUint8Array(key);
 
-    if (keytype.toLowerCase().includes("pkcs1") &&
-        keyBytes[0] === 0x30 && keyBytes[1] === 0x82 &&
-        keyBytes[4] === 0x02 && keyBytes[5] === 0x82) {
+    if (
+      keytype.toLowerCase().includes("pkcs1") &&
+      keyBytes[0] === 0x30 &&
+      keyBytes[1] === 0x82 &&
+      keyBytes[4] === 0x02 &&
+      keyBytes[5] === 0x82
+    ) {
       params.keyData = pkcs1ToSpki(keyBytes);
     } else {
       params.keyData = keyBytes;
@@ -370,24 +366,19 @@ export async function verifySignature(
       return false;
     }
 
-    return await subtle.verify(
-      options,
-      key,
-      raw_signature as BufferSource,
-      signed as BufferSource,
-    );
+    return await subtle.verify(options, key, raw_signature as BufferSource, signed as BufferSource);
   } else if (key.algorithm.name === KeyTypes.Ed25519) {
-    return await subtle.verify(
-      { name: key.algorithm.name },
-      key,
-      sig as BufferSource,
-      signed as BufferSource,
-    );
+    return await subtle.verify({ name: key.algorithm.name }, key, sig as BufferSource, signed as BufferSource);
   } else if (key.algorithm.name === RsaAlgorithms.PSS) {
     const hashAlg = (key.algorithm as RsaHashedKeyAlgorithm).hash.name;
-    const saltLength = hashAlg === HashAlgorithms.SHA256 ? 32 :
-                       hashAlg === HashAlgorithms.SHA384 ? 48 :
-                       hashAlg === HashAlgorithms.SHA512 ? 64 : 32;
+    const saltLength =
+      hashAlg === HashAlgorithms.SHA256
+        ? 32
+        : hashAlg === HashAlgorithms.SHA384
+          ? 48
+          : hashAlg === HashAlgorithms.SHA512
+            ? 64
+            : 32;
     return await subtle.verify(
       {
         name: RsaAlgorithms.PSS,
@@ -398,12 +389,7 @@ export async function verifySignature(
       signed as BufferSource,
     );
   } else if (key.algorithm.name === RsaAlgorithms.PKCS1v15) {
-    return await subtle.verify(
-      { name: key.algorithm.name },
-      key,
-      sig as BufferSource,
-      signed as BufferSource,
-    );
+    return await subtle.verify({ name: key.algorithm.name }, key, sig as BufferSource, signed as BufferSource);
   } else {
     throw new Error("Unsupported key type!");
   }
@@ -414,11 +400,7 @@ export async function verifySignature(
 // result in double-hashing. We use @noble/curves for low-level ECDSA verification,
 // adapted from the same workaround used in sigstore-js's conformance CLI.
 // See: https://github.com/sigstore/sigstore-js/blob/main/packages/conformance/src/commands/verify-bundle.ts#L111
-export async function verifySignatureOverDigest(
-  key: CryptoKey,
-  digest: Uint8Array,
-  sig: Uint8Array,
-): Promise<boolean> {
+export async function verifySignatureOverDigest(key: CryptoKey, digest: Uint8Array, sig: Uint8Array): Promise<boolean> {
   const subtle = await getSubtle();
   if (key.algorithm.name !== KeyTypes.Ecdsa) {
     throw new Error("verifySignatureOverDigest only supports ECDSA keys");
@@ -460,6 +442,5 @@ export async function verifySignatureOverDigest(
   // - prehash: false because we're passing a pre-computed digest, not the original message
   // - lowS: false to accept both high-S and low-S signatures (matches elliptic.js behavior)
   //   elliptic.js accepts malleable signatures by default, while @noble/curves rejects them by default
-  return curve.verify(sig, digest, publicKey, { format: 'der', prehash: false, lowS: false });
+  return curve.verify(sig, digest, publicKey, { format: "der", prehash: false, lowS: false });
 }
-

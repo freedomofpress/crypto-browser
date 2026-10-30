@@ -116,8 +116,7 @@ export class ByteStream {
 
   private ensureCapacity(size: number) {
     if (this.start + size > this.view.byteLength) {
-      const blockSize =
-        ByteStream.BLOCK_SIZE + (size > ByteStream.BLOCK_SIZE ? size : 0);
+      const blockSize = ByteStream.BLOCK_SIZE + (size > ByteStream.BLOCK_SIZE ? size : 0);
       this.realloc(this.view.byteLength + blockSize);
     }
   }

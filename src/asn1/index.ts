@@ -15,4 +15,4 @@ limitations under the License.
 
 Adapted from: https://github.com/sigstore/sigstore-js/blob/main/packages/core/src/asn1/index.ts
 */
-export { ASN1Obj } from './obj.js';
+export { ASN1Obj } from "./obj.js";

@@ -45,7 +45,5 @@ export function fromDER(certificate: Uint8Array, type = "CERTIFICATE"): string {
   // Split the certificate into lines of 64 characters.
   const lines = der.match(/.{1,64}/g) || "";
 
-  return [`-----BEGIN ${type}-----`, ...lines, `-----END ${type}-----`]
-    .join("\n")
-    .concat("\n");
+  return [`-----BEGIN ${type}-----`, ...lines, `-----END ${type}-----`].join("\n").concat("\n");
 }

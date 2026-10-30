@@ -1,30 +1,24 @@
-import { describe, it, expect, vi } from "vitest";
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { describe, expect, it, vi } from "vitest";
+
+import { ASN1Obj } from "../src/asn1/obj.js";
+import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
+import { digest, getSubtle, importKey, sha256, subtleCryptoProxy, verifySignature } from "../src/crypto.js";
 import {
-  Uint8ArrayToBase64,
-  Uint8ArrayToBase64Url,
-  Uint8ArrayToHex,
-  Uint8ArrayToString,
   base64ToUint8Array,
   base64UrlToUint8Array,
   concatBytes,
   hexToUint8Array,
   stringToUint8Array,
   uint8ArrayEqual,
+  Uint8ArrayToBase64,
+  Uint8ArrayToBase64Url,
+  Uint8ArrayToHex,
+  Uint8ArrayToString,
 } from "../src/encoding.js";
-import { toDER, fromDER } from "../src/pem.js";
-import { canonicalizeOLPC as canonicalize } from "../src/canonicalize.js";
-import { ByteStream } from "../src/stream.js";
-import { ASN1Obj } from "../src/asn1/obj.js";
 import { HashAlgorithms } from "../src/interfaces.js";
-import {
-  digest,
-  getSubtle,
-  importKey,
-  sha256,
-  subtleCryptoProxy,
-  verifySignature,
-} from "../src/crypto.js";
+import { fromDER, toDER } from "../src/pem.js";
+import { ByteStream } from "../src/stream.js";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519.js";
 
 describe("Crypto Browser Compatibility Tests", () => {
@@ -51,98 +45,51 @@ describe("Crypto Browser Compatibility Tests", () => {
 
   describe("Web Crypto API - ECDSA", () => {
     it("should support ECDSA P-256 sign/verify", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
       const data = new TextEncoder().encode("test data for signing");
-      const signature = await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-256" },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, keyPair.privateKey, data);
 
-      const valid = await crypto.subtle.verify(
-        { name: "ECDSA", hash: "SHA-256" },
-        keyPair.publicKey,
-        signature,
-        data
-      );
+      const valid = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, keyPair.publicKey, signature, data);
 
       expect(valid).toBe(true);
       expect(signature.byteLength).toBeGreaterThan(0);
     });
 
     it("should support ECDSA P-384 sign/verify", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-384" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-384" }, true, ["sign", "verify"]);
 
       const data = new TextEncoder().encode("test data");
-      const signature = await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-384" },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-384" }, keyPair.privateKey, data);
 
-      const valid = await crypto.subtle.verify(
-        { name: "ECDSA", hash: "SHA-384" },
-        keyPair.publicKey,
-        signature,
-        data
-      );
+      const valid = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-384" }, keyPair.publicKey, signature, data);
 
       expect(valid).toBe(true);
     });
 
     it("should support ECDSA P-521 sign/verify", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-521" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-521" }, true, ["sign", "verify"]);
 
       const data = new TextEncoder().encode("test");
-      const signature = await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-512" },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-512" }, keyPair.privateKey, data);
 
-      const valid = await crypto.subtle.verify(
-        { name: "ECDSA", hash: "SHA-512" },
-        keyPair.publicKey,
-        signature,
-        data
-      );
+      const valid = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-512" }, keyPair.publicKey, signature, data);
 
       expect(valid).toBe(true);
     });
 
     it("should reject invalid ECDSA signatures", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
       const data = new TextEncoder().encode("test data");
-      const signature = await crypto.subtle.sign(
-        { name: "ECDSA", hash: "SHA-256" },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, keyPair.privateKey, data);
 
       const tamperedData = new TextEncoder().encode("tampered data");
       const valid = await crypto.subtle.verify(
         { name: "ECDSA", hash: "SHA-256" },
         keyPair.publicKey,
         signature,
-        tamperedData
+        tamperedData,
       );
 
       expect(valid).toBe(false);
@@ -159,22 +106,13 @@ describe("Crypto Browser Compatibility Tests", () => {
           hash: "SHA-256",
         },
         true,
-        ["sign", "verify"]
+        ["sign", "verify"],
       );
 
       const data = new TextEncoder().encode("test data");
-      const signature = await crypto.subtle.sign(
-        { name: "RSA-PSS", saltLength: 32 },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "RSA-PSS", saltLength: 32 }, keyPair.privateKey, data);
 
-      const valid = await crypto.subtle.verify(
-        { name: "RSA-PSS", saltLength: 32 },
-        keyPair.publicKey,
-        signature,
-        data
-      );
+      const valid = await crypto.subtle.verify({ name: "RSA-PSS", saltLength: 32 }, keyPair.publicKey, signature, data);
 
       expect(valid).toBe(true);
       expect(signature.byteLength).toBe(256);
@@ -189,22 +127,13 @@ describe("Crypto Browser Compatibility Tests", () => {
           hash: "SHA-256",
         },
         true,
-        ["sign", "verify"]
+        ["sign", "verify"],
       );
 
       const data = new TextEncoder().encode("test data");
-      const signature = await crypto.subtle.sign(
-        { name: "RSASSA-PKCS1-v1_5" },
-        keyPair.privateKey,
-        data
-      );
+      const signature = await crypto.subtle.sign({ name: "RSASSA-PKCS1-v1_5" }, keyPair.privateKey, data);
 
-      const valid = await crypto.subtle.verify(
-        { name: "RSASSA-PKCS1-v1_5" },
-        keyPair.publicKey,
-        signature,
-        data
-      );
+      const valid = await crypto.subtle.verify({ name: "RSASSA-PKCS1-v1_5" }, keyPair.publicKey, signature, data);
 
       expect(valid).toBe(true);
     });
@@ -249,20 +178,12 @@ describe("Crypto Browser Compatibility Tests", () => {
 
   describe("Web Crypto API - Key Operations", () => {
     it("should support SPKI key export/import", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
       const exported = await crypto.subtle.exportKey("spki", keyPair.publicKey);
-      const imported = await crypto.subtle.importKey(
-        "spki",
-        exported,
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["verify"]
-      );
+      const imported = await crypto.subtle.importKey("spki", exported, { name: "ECDSA", namedCurve: "P-256" }, true, [
+        "verify",
+      ]);
 
       expect(imported).toBeDefined();
       expect(imported.type).toBe("public");
@@ -303,13 +224,17 @@ describe("Crypto Browser Compatibility Tests", () => {
       expect(decoded.length).toBeGreaterThan(0);
       expect(decoded[0]).toBe(1);
     });
-
   });
 
   describe("Encoding - Base64url", () => {
     it("round-trips without padding and with URL-safe characters", () => {
       // 0xfb 0xff 0xbf is "+/+/" in base64; one and two trailing bytes exercise the padding.
-      for (const bytes of [new Uint8Array([0xfb, 0xff, 0xbf]), new Uint8Array([0xfb, 0xff]), new Uint8Array([0xfb]), new Uint8Array(0)]) {
+      for (const bytes of [
+        new Uint8Array([0xfb, 0xff, 0xbf]),
+        new Uint8Array([0xfb, 0xff]),
+        new Uint8Array([0xfb]),
+        new Uint8Array(0),
+      ]) {
         const encoded = Uint8ArrayToBase64Url(bytes);
         expect(encoded).not.toMatch(/[+/=]/);
         expect(base64UrlToUint8Array(encoded)).toEqual(bytes);
@@ -333,7 +258,9 @@ describe("Crypto Browser Compatibility Tests", () => {
     it("hashes bytes to known vectors", async () => {
       const abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
       expect(Uint8ArrayToHex(await sha256(stringToUint8Array("abc")))).toBe(abc);
-      expect(Uint8ArrayToHex(await sha256(new Uint8Array(0)))).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+      expect(Uint8ArrayToHex(await sha256(new Uint8Array(0)))).toBe(
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      );
       expect(Uint8ArrayToHex(await digest(HashAlgorithms.SHA384, stringToUint8Array("abc")))).toBe(
         "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
       );
@@ -342,7 +269,9 @@ describe("Crypto Browser Compatibility Tests", () => {
     it("hashes a view at an offset, not the whole buffer", async () => {
       const buffer = new Uint8Array([0, 0x61, 0x62, 0x63, 0]);
       const view = buffer.subarray(1, 4);
-      expect(Uint8ArrayToHex(await sha256(view))).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+      expect(Uint8ArrayToHex(await sha256(view))).toBe(
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      );
     });
   });
 
@@ -631,11 +560,7 @@ SGVsbG8gV29ybGQ=
 
   describe("ASN.1 Parsing", () => {
     it("should parse simple ASN.1 sequences", () => {
-      const sequence = new Uint8Array([
-        0x30, 0x06,
-        0x02, 0x01, 0x01,
-        0x02, 0x01, 0x02
-      ]);
+      const sequence = new Uint8Array([0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x02]);
 
       const obj = ASN1Obj.parseBuffer(sequence);
 
@@ -644,14 +569,14 @@ SGVsbG8gV29ybGQ=
     });
 
     it("should parse ASN.1 integers", () => {
-      const integer = new Uint8Array([0x02, 0x01, 0x2A]);
+      const integer = new Uint8Array([0x02, 0x01, 0x2a]);
       const obj = ASN1Obj.parseBuffer(integer);
 
       expect(obj.toInteger()).toBe(42n);
     });
 
     it("should parse ASN.1 booleans", () => {
-      const boolTrue = new Uint8Array([0x01, 0x01, 0xFF]);
+      const boolTrue = new Uint8Array([0x01, 0x01, 0xff]);
       const boolFalse = new Uint8Array([0x01, 0x01, 0x00]);
 
       const objTrue = ASN1Obj.parseBuffer(boolTrue);
@@ -664,11 +589,7 @@ SGVsbG8gV29ybGQ=
 
   describe("Crypto Wrapper Functions", () => {
     it("should import ECDSA P-256 keys from PEM", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-256" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
       const spki = await crypto.subtle.exportKey("spki", keyPair.publicKey);
       const pem = fromDER(new Uint8Array(spki), "PUBLIC KEY");
@@ -681,11 +602,7 @@ SGVsbG8gV29ybGQ=
     });
 
     it("should import ECDSA P-384 keys from PEM", async () => {
-      const keyPair = await crypto.subtle.generateKey(
-        { name: "ECDSA", namedCurve: "P-384" },
-        true,
-        ["sign", "verify"]
-      );
+      const keyPair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-384" }, true, ["sign", "verify"]);
 
       const spki = await crypto.subtle.exportKey("spki", keyPair.publicKey);
       const pem = fromDER(new Uint8Array(spki), "PUBLIC KEY");
@@ -705,7 +622,7 @@ SGVsbG8gV29ybGQ=
           hash: "SHA-256",
         },
         true,
-        ["sign", "verify"]
+        ["sign", "verify"],
       );
 
       const spki = await crypto.subtle.exportKey("spki", keyPair.publicKey);
@@ -729,37 +646,39 @@ SGVsbG8gV29ybGQ=
       const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes);
       const message = new TextEncoder().encode("fallback signing test");
       const privateKeyPkcs8 = new Uint8Array([
-        0x30, 0x2e,
-        0x02, 0x01, 0x00,
-        0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
-        0x04, 0x22, 0x04, 0x20,
+        0x30,
+        0x2e,
+        0x02,
+        0x01,
+        0x00,
+        0x30,
+        0x05,
+        0x06,
+        0x03,
+        0x2b,
+        0x65,
+        0x70,
+        0x04,
+        0x22,
+        0x04,
+        0x20,
         ...privateKeyBytes,
       ]);
 
-      const fallbackPrivateKey = await fallbackSubtle.importKey(
-        "raw",
-        privateKeyBytes,
-        { name: "Ed25519" },
-        false,
-        ["sign"]
-      );
-      const fallbackPublicKey = await fallbackSubtle.importKey(
-        "raw",
-        publicKeyBytes,
-        { name: "Ed25519" },
-        false,
-        ["verify"]
-      );
+      const fallbackPrivateKey = await fallbackSubtle.importKey("raw", privateKeyBytes, { name: "Ed25519" }, false, [
+        "sign",
+      ]);
+      const fallbackPublicKey = await fallbackSubtle.importKey("raw", publicKeyBytes, { name: "Ed25519" }, false, [
+        "verify",
+      ]);
 
       const fallbackSignature = new Uint8Array(
-        await fallbackSubtle.sign({ name: "Ed25519" }, fallbackPrivateKey, message)
+        await fallbackSubtle.sign({ name: "Ed25519" }, fallbackPrivateKey, message),
       );
 
       expect((fallbackPrivateKey as any).__fallback__).toBe(true);
       expect((fallbackPublicKey as any).__fallback__).toBe(true);
-      expect(
-        ed25519.verify(fallbackSignature, message, publicKeyBytes)
-      ).toBe(true);
+      expect(ed25519.verify(fallbackSignature, message, publicKeyBytes)).toBe(true);
 
       const nobleSignature = ed25519.sign(message, privateKeyBytes);
       expect(uint8ArrayEqual(fallbackSignature, nobleSignature)).toBe(true);
@@ -768,22 +687,15 @@ SGVsbG8gV29ybGQ=
         { name: "Ed25519" },
         fallbackPublicKey,
         fallbackSignature,
-        message
+        message,
       );
       expect(fallbackValid).toBe(true);
 
       let nativeEd25519Available = true;
       try {
-        await crypto.subtle.generateKey(
-          { name: "Ed25519" },
-          false,
-          ["sign", "verify"]
-        );
+        await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"]);
       } catch (error) {
-        if (
-          error instanceof DOMException &&
-          error.name === "NotSupportedError"
-        ) {
+        if (error instanceof DOMException && error.name === "NotSupportedError") {
           nativeEd25519Available = false;
         } else {
           throw error;
@@ -791,53 +703,29 @@ SGVsbG8gV29ybGQ=
       }
 
       if (nativeEd25519Available) {
-        const nativePrivateKey = await crypto.subtle.importKey(
-          "pkcs8",
-          privateKeyPkcs8,
-          { name: "Ed25519" },
-          false,
-          ["sign"]
-        );
-        const nativePublicKey = await crypto.subtle.importKey(
-          "raw",
-          publicKeyBytes,
-          { name: "Ed25519" },
-          false,
-          ["verify"]
-        );
+        const nativePrivateKey = await crypto.subtle.importKey("pkcs8", privateKeyPkcs8, { name: "Ed25519" }, false, [
+          "sign",
+        ]);
+        const nativePublicKey = await crypto.subtle.importKey("raw", publicKeyBytes, { name: "Ed25519" }, false, [
+          "verify",
+        ]);
 
         const nativeSignature = new Uint8Array(
-          await crypto.subtle.sign({ name: "Ed25519" }, nativePrivateKey, message)
+          await crypto.subtle.sign({ name: "Ed25519" }, nativePrivateKey, message),
         );
 
         expect(uint8ArrayEqual(fallbackSignature, nativeSignature)).toBe(true);
 
         await expect(
-          crypto.subtle.verify(
-            { name: "Ed25519" },
-            nativePublicKey,
-            fallbackSignature,
-            message
-          )
+          crypto.subtle.verify({ name: "Ed25519" }, nativePublicKey, fallbackSignature, message),
         ).resolves.toBe(true);
 
         await expect(
-          fallbackSubtle.verify(
-            { name: "Ed25519" },
-            fallbackPublicKey,
-            nativeSignature,
-            message
-          )
+          fallbackSubtle.verify({ name: "Ed25519" }, fallbackPublicKey, nativeSignature, message),
         ).resolves.toBe(true);
       } else {
         await expect(
-          crypto.subtle.importKey(
-            "pkcs8",
-            privateKeyPkcs8,
-            { name: "Ed25519" },
-            false,
-            ["sign"]
-          )
+          crypto.subtle.importKey("pkcs8", privateKeyPkcs8, { name: "Ed25519" }, false, ["sign"]),
         ).rejects.toMatchObject({ name: "NotSupportedError" });
       }
     });
@@ -855,28 +743,16 @@ SGVsbG8gV29ybGQ=
       const message = new TextEncoder().encode("fallback key type validation");
       const signature = ed25519.sign(message, privateKeyBytes);
 
-      const privateKey = await subtle.importKey(
-        "raw",
-        privateKeyBytes,
-        { name: "Ed25519" },
-        false,
-        ["sign"]
-      );
-      const publicKey = await subtle.importKey(
-        "raw",
-        publicKeyBytes,
-        { name: "Ed25519" },
-        false,
-        ["verify"]
+      const privateKey = await subtle.importKey("raw", privateKeyBytes, { name: "Ed25519" }, false, ["sign"]);
+      const publicKey = await subtle.importKey("raw", publicKeyBytes, { name: "Ed25519" }, false, ["verify"]);
+
+      await expect(subtle.verify({ name: "Ed25519" }, privateKey, signature, message)).rejects.toThrow(
+        "Invalid key type for verify",
       );
 
-      await expect(
-        subtle.verify({ name: "Ed25519" }, privateKey, signature, message)
-      ).rejects.toThrow("Invalid key type for verify");
-
-      await expect(
-        subtle.sign({ name: "Ed25519" }, publicKey, message)
-      ).rejects.toThrow("Invalid key type for signing");
+      await expect(subtle.sign({ name: "Ed25519" }, publicKey, message)).rejects.toThrow(
+        "Invalid key type for signing",
+      );
     });
 
     // Builds the proxy as if this browser had no Ed25519.
@@ -905,14 +781,37 @@ SGVsbG8gV29ybGQ=
       const priv = Uint8Array.from(Array.from({ length: 32 }, (_, i) => i + 1));
       const pub = ed25519.getPublicKey(priv);
       const spki = new Uint8Array([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00, ...pub]);
-      const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...priv]);
-      const b64url = (b: Uint8Array) => Uint8ArrayToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const pkcs8 = new Uint8Array([
+        0x30,
+        0x2e,
+        0x02,
+        0x01,
+        0x00,
+        0x30,
+        0x05,
+        0x06,
+        0x03,
+        0x2b,
+        0x65,
+        0x70,
+        0x04,
+        0x22,
+        0x04,
+        0x20,
+        ...priv,
+      ]);
+      const b64url = (b: Uint8Array) =>
+        Uint8ArrayToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       const jwkPub = { kty: "OKP", crv: "Ed25519", x: b64url(pub) };
       const jwkPriv = { ...jwkPub, d: b64url(priv) };
       const message = new TextEncoder().encode("fallback format compatibility");
       const nobleSignature = ed25519.sign(message, priv);
 
-      const publicFormats = [["raw", pub], ["spki", spki], ["jwk", jwkPub]] as const;
+      const publicFormats = [
+        ["raw", pub],
+        ["spki", spki],
+        ["jwk", jwkPub],
+      ] as const;
       for (const [format, data] of publicFormats) {
         const key = await fallbackSubtle.importKey(format, data as never, alg, true, ["verify"]);
         expect((key as any).__fallback__).toBe(true);
@@ -920,15 +819,27 @@ SGVsbG8gV29ybGQ=
         expect(await fallbackSubtle.verify(alg, key, nobleSignature, new Uint8Array([0]))).toBe(false);
       }
 
-      for (const [format, data] of [["raw", priv], ["pkcs8", pkcs8], ["jwk", jwkPriv]] as const) {
+      for (const [format, data] of [
+        ["raw", priv],
+        ["pkcs8", pkcs8],
+        ["jwk", jwkPriv],
+      ] as const) {
         const key = await fallbackSubtle.importKey(format, data as never, alg, false, ["sign"]);
-        expect(uint8ArrayEqual(new Uint8Array(await fallbackSubtle.sign(alg, key, message)), nobleSignature)).toBe(true);
+        expect(uint8ArrayEqual(new Uint8Array(await fallbackSubtle.sign(alg, key, message)), nobleSignature)).toBe(
+          true,
+        );
       }
 
       // Bytes in the wrong container must be rejected.
-      await expect(fallbackSubtle.importKey("raw", spki, alg, true, ["verify"])).rejects.toMatchObject({ name: "DataError" });
-      await expect(fallbackSubtle.importKey("spki", pub, alg, true, ["verify"])).rejects.toMatchObject({ name: "DataError" });
-      await expect(fallbackSubtle.importKey("pkcs8", priv, alg, false, ["sign"])).rejects.toMatchObject({ name: "DataError" });
+      await expect(fallbackSubtle.importKey("raw", spki, alg, true, ["verify"])).rejects.toMatchObject({
+        name: "DataError",
+      });
+      await expect(fallbackSubtle.importKey("spki", pub, alg, true, ["verify"])).rejects.toMatchObject({
+        name: "DataError",
+      });
+      await expect(fallbackSubtle.importKey("pkcs8", priv, alg, false, ["sign"])).rejects.toMatchObject({
+        name: "DataError",
+      });
 
       // Other algorithms must reach the real SubtleCrypto.
       const digest = new Uint8Array(await fallbackSubtle.digest("SHA-256", message));
@@ -968,7 +879,9 @@ SGVsbG8gV29ybGQ=
       input.fill(0);
       expect(await fallbackSubtle.verify(alg, copied, sig, message)).toBe(true);
 
-      expect(await fallbackSubtle.verify(alg, key, sig.buffer.slice(0), new DataView(message.buffer.slice(0)))).toBe(true);
+      expect(await fallbackSubtle.verify(alg, key, sig.buffer.slice(0), new DataView(message.buffer.slice(0)))).toBe(
+        true,
+      );
     });
 
     it("should verify a real Rekor checkpoint with the PKIX_ED25519 key, natively and through the fallback", async () => {

@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
 import { ed25519 } from "@noble/curves/ed25519.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { subtleCryptoProxy, withEd25519Fallback } from "../src/crypto";
-import { base64ToUint8Array, Uint8ArrayToBase64, uint8ArrayEqual } from "../src/encoding";
+import { base64ToUint8Array, uint8ArrayEqual, Uint8ArrayToBase64 } from "../src/encoding";
 import { REKOR2_ED25519_SPKI_BASE64, rekor2Checkpoint } from "./fixtures/rekor2-ed25519";
 
 // Native WebCrypto is the reference. The fallback must accept, reject and sign the same way.
@@ -16,7 +16,25 @@ const priv = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
 const pub = new Uint8Array(ed25519.getPublicKey(priv));
 const nobleSign = (m: Uint8Array, k: Uint8Array) => new Uint8Array(ed25519.sign(m, k));
 const spki = new Uint8Array([0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00, ...pub]);
-const pkcs8 = new Uint8Array([0x30, 0x2e, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20, ...priv]);
+const pkcs8 = new Uint8Array([
+  0x30,
+  0x2e,
+  0x02,
+  0x01,
+  0x00,
+  0x30,
+  0x05,
+  0x06,
+  0x03,
+  0x2b,
+  0x65,
+  0x70,
+  0x04,
+  0x22,
+  0x04,
+  0x20,
+  ...priv,
+]);
 const b64url = (b: Uint8Array) => Uint8ArrayToBase64(b).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const jwkPub = { kty: "OKP", crv: "Ed25519", x: b64url(pub) };
 const jwkPriv = { ...jwkPub, d: b64url(priv) };
@@ -26,7 +44,13 @@ const otherMsg = new TextEncoder().encode("Ed25519 compatibility!");
 const isFallback = (key: unknown) => (key as { __fallback__?: boolean }).__fallback__ === true;
 
 // importKey has separate overloads for jwk and binary formats. This helper takes both.
-type AnyImport = (format: KeyFormat, data: unknown, alg: Algorithm, extractable: boolean, usages: KeyUsage[]) => Promise<CryptoKey>;
+type AnyImport = (
+  format: KeyFormat,
+  data: unknown,
+  alg: Algorithm,
+  extractable: boolean,
+  usages: KeyUsage[],
+) => Promise<CryptoKey>;
 const importAny = (subtle: SubtleCrypto, format: KeyFormat, data: unknown, usages: KeyUsage[]) =>
   (subtle.importKey as unknown as AnyImport)(format, data, alg, usages.includes("verify"), usages);
 
@@ -40,7 +64,11 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     const nativeSig = new Uint8Array(await native.sign(alg, nativePriv, msg));
     const fallbackSig = nobleSign(msg, priv);
 
-    for (const [format, data] of [["raw", pub], ["spki", spki], ["jwk", jwkPub]] as const) {
+    for (const [format, data] of [
+      ["raw", pub],
+      ["spki", spki],
+      ["jwk", jwkPub],
+    ] as const) {
       const nativeKey = await importAny(native, format, data, ["verify"]);
       const fallbackKey = await importAny(fallback, format, data, ["verify"]);
       expect(isFallback(nativeKey)).toBe(false);
@@ -56,7 +84,11 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     const nativePriv = await native.importKey("pkcs8", pkcs8, alg, false, ["sign"]);
     const reference = new Uint8Array(await native.sign(alg, nativePriv, msg));
 
-    for (const [format, data] of [["raw", priv], ["pkcs8", pkcs8], ["jwk", jwkPriv]] as const) {
+    for (const [format, data] of [
+      ["raw", priv],
+      ["pkcs8", pkcs8],
+      ["jwk", jwkPriv],
+    ] as const) {
       const key = await importAny(fallback, format, data, ["sign"]);
       expect(isFallback(key)).toBe(true);
       expect(uint8ArrayEqual(new Uint8Array(await fallback.sign(alg, key, msg)), reference)).toBe(true);
@@ -80,7 +112,9 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     ];
     for (const [format, data, usages] of malformed) {
       await expect(importAny(native, format, data, usages), `native ${format}`).rejects.toThrow();
-      await expect(importAny(fallback, format, data, usages), `fallback ${format}`).rejects.toMatchObject({ name: "DataError" });
+      await expect(importAny(fallback, format, data, usages), `fallback ${format}`).rejects.toMatchObject({
+        name: "DataError",
+      });
     }
   });
 
@@ -90,14 +124,24 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     const good = nobleSign(msg, priv);
     const highS = new Uint8Array(good);
     highS[63] |= 0xf0; // s above the group order
-    for (const sig of [good.subarray(0, 63), new Uint8Array([...good, 0]), new Uint8Array(0), new Uint8Array(64), highS]) {
+    for (const sig of [
+      good.subarray(0, 63),
+      new Uint8Array([...good, 0]),
+      new Uint8Array(0),
+      new Uint8Array(64),
+      highS,
+    ]) {
       expect(await native.verify(alg, nativeKey, sig, msg)).toBe(false);
       expect(await fallback.verify(alg, fallbackKey, sig, msg)).toBe(false);
     }
     // A public key that is not a curve point imports fine and fails to verify.
     const notAPoint = new Uint8Array(32).fill(0xff);
-    expect(await native.verify(alg, await native.importKey("raw", notAPoint, alg, true, ["verify"]), good, msg)).toBe(false);
-    expect(await fallback.verify(alg, await fallback.importKey("raw", notAPoint, alg, true, ["verify"]), good, msg)).toBe(false);
+    expect(await native.verify(alg, await native.importKey("raw", notAPoint, alg, true, ["verify"]), good, msg)).toBe(
+      false,
+    );
+    expect(
+      await fallback.verify(alg, await fallback.importKey("raw", notAPoint, alg, true, ["verify"]), good, msg),
+    ).toBe(false);
   });
 
   it("copies key bytes at import and accepts every BufferSource shape", async () => {
@@ -123,7 +167,9 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
 
   it("uses native SubtleCrypto when Ed25519 is supported and the proxy when it is not", async () => {
     expect(await subtleCryptoProxy()).toBe(crypto.subtle);
-    vi.spyOn(crypto.subtle, "generateKey").mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"));
+    vi.spyOn(crypto.subtle, "generateKey").mockRejectedValueOnce(
+      new DOMException("not supported", "NotSupportedError"),
+    );
     const proxied = await subtleCryptoProxy();
     vi.restoreAllMocks();
     expect(proxied).not.toBe(crypto.subtle);
@@ -131,7 +177,12 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
   });
 
   it("passes other algorithms through to native", async () => {
-    expect(uint8ArrayEqual(new Uint8Array(await fallback.digest("SHA-256", msg)), new Uint8Array(await native.digest("SHA-256", msg)))).toBe(true);
+    expect(
+      uint8ArrayEqual(
+        new Uint8Array(await fallback.digest("SHA-256", msg)),
+        new Uint8Array(await native.digest("SHA-256", msg)),
+      ),
+    ).toBe(true);
 
     const ecdsa = await fallback.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
     const ecdsaAlg = { name: "ECDSA", hash: "SHA-256" };
@@ -142,7 +193,9 @@ describe("Ed25519 fallback compatibility with native WebCrypto", () => {
     const aes = await fallback.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
     const iv = new Uint8Array(12);
     const ciphertext = await fallback.encrypt({ name: "AES-GCM", iv }, aes, msg);
-    expect(uint8ArrayEqual(new Uint8Array(await fallback.decrypt({ name: "AES-GCM", iv }, aes, ciphertext)), msg)).toBe(true);
+    expect(uint8ArrayEqual(new Uint8Array(await fallback.decrypt({ name: "AES-GCM", iv }, aes, ciphertext)), msg)).toBe(
+      true,
+    );
 
     const hkdf = await fallback.importKey("raw", msg, "HKDF", false, ["deriveBits"]);
     const params = { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(0), info: new Uint8Array(0) };
@@ -160,7 +213,9 @@ describe("Real Rekor checkpoint through importKey() and verifySignature()", () =
   async function loadCrypto(forceFallback: boolean) {
     vi.resetModules();
     if (forceFallback) {
-      vi.spyOn(crypto.subtle, "generateKey").mockRejectedValueOnce(new DOMException("not supported", "NotSupportedError"));
+      vi.spyOn(crypto.subtle, "generateKey").mockRejectedValueOnce(
+        new DOMException("not supported", "NotSupportedError"),
+      );
     }
     const mod = await import("../src/crypto");
     const subtle = await mod.getSubtle();
@@ -192,7 +247,9 @@ describe("Real Rekor checkpoint through importKey() and verifySignature()", () =
   it("imports the key from PEM and hex through the fallback", async () => {
     const { mod } = await loadCrypto(true);
     const pem = `-----BEGIN PUBLIC KEY-----\n${REKOR2_ED25519_SPKI_BASE64}\n-----END PUBLIC KEY-----\n`;
-    const hex = Array.from(base64ToUint8Array(REKOR2_ED25519_SPKI_BASE64).subarray(12), (b) => b.toString(16).padStart(2, "0")).join("");
+    const hex = Array.from(base64ToUint8Array(REKOR2_ED25519_SPKI_BASE64).subarray(12), (b) =>
+      b.toString(16).padStart(2, "0"),
+    ).join("");
     for (const encoded of [pem, hex]) {
       const key = await mod.importKey("PKIX_ED25519", "PKIX_ED25519", encoded);
       expect(isFallback(key)).toBe(true);
