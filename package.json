@@ -38,7 +38,7 @@
   "author": "Giulio B. and Sacha Servan-Schreiber",
   "license": "Apache-2.0",
   "dependencies": {
-    "@noble/curves": "^1.6.0"
+    "@noble/curves": "^2.4.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
